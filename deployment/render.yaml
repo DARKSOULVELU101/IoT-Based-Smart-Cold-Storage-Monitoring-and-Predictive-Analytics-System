@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: cold-storage-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cold-storage-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "https://cold-storage-dashboard.vercel.app,http://localhost:5173"
+      - key: PYTHON_VERSION
+        value: "3.11"
+
+  - type: postgres
+    name: cold-storage-db
+    plan: free
+    database: coldstorage
