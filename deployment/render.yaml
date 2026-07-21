@@ -1,23 +1,34 @@
 services:
   - type: web
-    name: cold-storage-api
+    name: iot-analytics-suite-api
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    healthCheckPolicy:
+      responseTimeoutSeconds: 60
+    autoDeploy: true
+    branch: main
+    preStartCommand: python -c "from src.database.connection import engine, Base; import asyncio; asyncio.run(engine.begin().then(Base.metadata.create_all))"
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: cold-storage-db
-          property: connectionString
-      - key: SECRET_KEY
+        sync: false
+      - key: JWT_SECRET
         generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_EXPIRATION_MINUTES
+        value: "1440"
       - key: CORS_ORIGINS
-        value: "https://cold-storage-dashboard.vercel.app,http://localhost:5173"
+        sync: false
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_EMAIL
+        value: admin@iot-analytics-suite.com
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: ENABLED_MODULES
+        value: cold_storage,machine_health,water_quality,warehouse
       - key: PYTHON_VERSION
-        value: "3.11"
-
-  - type: postgres
-    name: cold-storage-db
-    plan: free
-    database: coldstorage
+        value: "3.11.0"

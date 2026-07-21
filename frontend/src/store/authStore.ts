@@ -1,12 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-
-interface User {
-  id: number
-  username: string
-  email: string
-  role: string
-}
+import type { User } from '../services/api'
 
 interface AuthState {
   user: User | null
@@ -14,7 +8,7 @@ interface AuthState {
   isAuthenticated: boolean
   login: (user: User, token: string) => void
   logout: () => void
-  updateUser: (user: Partial<User>) => void
+  setUser: (user: User) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -23,17 +17,24 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
-      login: (user, token) =>
-        set({ user, token, isAuthenticated: true }),
-      logout: () =>
-        set({ user: null, token: null, isAuthenticated: false }),
-      updateUser: (userData) =>
-        set((state) => ({
-          user: state.user ? { ...state.user, ...userData } : null,
-        })),
+      login: (user, token) => {
+        localStorage.setItem('auth_token', token)
+        set({ user, token, isAuthenticated: true })
+      },
+      logout: () => {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('auth_user')
+        set({ user: null, token: null, isAuthenticated: false })
+      },
+      setUser: (user) => set({ user }),
     }),
     {
-      name: 'cold-storage-auth',
+      name: 'iot-auth',
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 )

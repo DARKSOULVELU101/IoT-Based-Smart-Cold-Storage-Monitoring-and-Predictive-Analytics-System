@@ -1,144 +1,198 @@
-from typing import List
-from datetime import datetime
-
-from sqlalchemy import select, func
+﻿from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.models import Alert, AlertLevel, SensorReading, Device
-
-
-TEMPERATURE_HIGH_THRESHOLD = 8.0
-TEMPERATURE_LOW_THRESHOLD = 2.0
-HUMIDITY_HIGH_THRESHOLD = 70.0
-DOOR_OPEN_THRESHOLD_SECONDS = 15
-GAS_LEAK_THRESHOLD = 2600
-COMPRESSOR_CURRENT_HIGH_THRESHOLD = 8.0
-RISK_SCORE_HIGH_THRESHOLD = 60
+from sqlalchemy import select, and_
+from src.database.models import Alert, SensorReading
 
 
-async def evaluate_alerts(db: AsyncSession, device: Device, reading: SensorReading) -> List[Alert]:
-    alerts_created = []
+async def evaluate_alerts(db: AsyncSession, reading: SensorReading):
+    alert_rules = []
+    mt = reading.module_type or "cold_storage"
 
-    checks = [
-        ("TEMPERATURE_HIGH", reading.temperature > TEMPERATURE_HIGH_THRESHOLD, AlertLevel.WARNING, f"High temperature: {reading.temperature}°C (threshold: {TEMPERATURE_HIGH_THRESHOLD}°C)"),
-        ("TEMPERATURE_LOW", reading.temperature < TEMPERATURE_LOW_THRESHOLD, AlertLevel.WARNING, f"Low temperature: {reading.temperature}°C (threshold: {TEMPERATURE_LOW_THRESHOLD}°C)"),
-        ("HUMIDITY_HIGH", reading.humidity > HUMIDITY_HIGH_THRESHOLD, AlertLevel.WARNING, f"High humidity: {reading.humidity}% (threshold: {HUMIDITY_HIGH_THRESHOLD}%)"),
-        ("DOOR_LEFT_OPEN", reading.door_open and reading.door_open_seconds > DOOR_OPEN_THRESHOLD_SECONDS, AlertLevel.WARNING, f"Door left open for {reading.door_open_seconds}s (threshold: {DOOR_OPEN_THRESHOLD_SECONDS}s)"),
-        ("GAS_LEAK", reading.gas_level > GAS_LEAK_THRESHOLD, AlertLevel.CRITICAL, f"Gas level: {reading.gas_level}ppm (threshold: {GAS_LEAK_THRESHOLD}ppm)"),
-        ("POWER_FAILURE", not reading.power_available, AlertLevel.CRITICAL, "Power failure detected"),
-        ("COMPRESSOR_FAILURE", reading.compressor_current > COMPRESSOR_CURRENT_HIGH_THRESHOLD, AlertLevel.CRITICAL, f"Compressor overcurrent: {reading.compressor_current}A (threshold: {COMPRESSOR_CURRENT_HIGH_THRESHOLD}A)"),
-        ("HIGH_RISK_SCORE", reading.risk_score > RISK_SCORE_HIGH_THRESHOLD, AlertLevel.CRITICAL, f"High risk score: {reading.risk_score} (threshold: {RISK_SCORE_HIGH_THRESHOLD})"),
-    ]
+    if mt == "cold_storage":
+        if reading.temperature is not None:
+            if reading.temperature > 8:
+                alert_rules.append({
+                    "alert_type": "TEMPERATURE_HIGH",
+                    "severity": "critical",
+                    "message": f"Cold Storage - Temperature critically high: {reading.temperature}C (threshold: 8C)",
+                })
+            elif reading.temperature < 2:
+                alert_rules.append({
+                    "alert_type": "TEMPERATURE_LOW",
+                    "severity": "warning",
+                    "message": f"Cold Storage - Temperature low: {reading.temperature}C (threshold: 2C)",
+                })
+        if reading.humidity is not None and reading.humidity > 70:
+            alert_rules.append({
+                "alert_type": "HUMIDITY_HIGH",
+                "severity": "warning",
+                "message": f"Cold Storage - Humidity high: {reading.humidity}% (threshold: 70%)",
+            })
+        if reading.door_open_seconds and reading.door_open_seconds > 15:
+            alert_rules.append({
+                "alert_type": "DOOR_LEFT_OPEN",
+                "severity": "warning",
+                "message": f"Cold Storage - Door left open for {reading.door_open_seconds}s (threshold: 15s)",
+            })
+        if reading.gas_level and reading.gas_level > 2600:
+            alert_rules.append({
+                "alert_type": "GAS_LEAK",
+                "severity": "critical",
+                "message": f"Cold Storage - Gas leak detected: level {reading.gas_level} (threshold: 2600)",
+            })
+        if reading.power_available is not None and not reading.power_available:
+            alert_rules.append({
+                "alert_type": "POWER_FAILURE",
+                "severity": "critical",
+                "message": "Cold Storage - Power failure detected",
+            })
+        if reading.compressor_current is not None and reading.compressor_current > 8:
+            alert_rules.append({
+                "alert_type": "COMPRESSOR_FAULT",
+                "severity": "warning",
+                "message": f"Cold Storage - High compressor current: {reading.compressor_current}A (threshold: 8A)",
+            })
 
-    for alert_type, condition, level, message in checks:
-        if condition:
-            existing = await db.execute(
-                select(Alert).where(
-                    Alert.device_id == device.id,
-                    Alert.alert_type == alert_type,
-                    Alert.resolved == False,
-                ).limit(1)
-            )
-            existing_alert = existing.scalar_one_or_none()
+    elif mt == "machine_health":
+        if reading.vibration is not None and reading.vibration > 10.0:
+            alert_rules.append({
+                "alert_type": "VIBRATION_HIGH",
+                "severity": "critical",
+                "message": f"Machine Health - Vibration critically high: {reading.vibration}mm/s (threshold: 10mm/s)",
+            })
+        if reading.temperature is not None and reading.temperature > 85:
+            alert_rules.append({
+                "alert_type": "TEMPERATURE_HIGH",
+                "severity": "critical",
+                "message": f"Machine Health - Temperature critically high: {reading.temperature}C (threshold: 85C)",
+            })
+        if reading.current is not None and reading.current > 15:
+            alert_rules.append({
+                "alert_type": "CURRENT_HIGH",
+                "severity": "warning",
+                "message": f"Machine Health - Current high: {reading.current}A (threshold: 15A)",
+            })
+        if reading.voltage is not None and reading.voltage < 180:
+            alert_rules.append({
+                "alert_type": "VOLTAGE_LOW",
+                "severity": "warning",
+                "message": f"Machine Health - Voltage low: {reading.voltage}V (threshold: 180V)",
+            })
+        if reading.risk_score and reading.risk_score >= 75:
+            alert_rules.append({
+                "alert_type": "FAILURE_PREDICTED",
+                "severity": "critical",
+                "message": f"Machine Health - Failure predicted: risk score {reading.risk_score} (threshold: 75)",
+            })
 
-            if not existing_alert:
-                alert = Alert(
-                    device_id=device.id,
-                    zone=reading.zone,
-                    alert_type=alert_type,
-                    level=level,
-                    message=message,
-                    resolved=False,
-                    created_at=datetime.utcnow(),
-                )
-                db.add(alert)
-                alerts_created.append(alert)
+    elif mt == "water_quality":
+        if reading.ph is not None:
+            if reading.ph < 6.5:
+                alert_rules.append({
+                    "alert_type": "PH_LOW",
+                    "severity": "critical",
+                    "message": f"Water Quality - pH low: {reading.ph} (threshold: 6.5)",
+                })
+            elif reading.ph > 8.5:
+                alert_rules.append({
+                    "alert_type": "PH_HIGH",
+                    "severity": "warning",
+                    "message": f"Water Quality - pH high: {reading.ph} (threshold: 8.5)",
+                })
+        if reading.tds is not None and reading.tds > 500:
+            alert_rules.append({
+                "alert_type": "TDS_HIGH",
+                "severity": "warning",
+                "message": f"Water Quality - TDS high: {reading.tds}ppm (threshold: 500ppm)",
+            })
+        if reading.turbidity is not None and reading.turbidity > 5.0:
+            alert_rules.append({
+                "alert_type": "CONTAMINATION_RISK",
+                "severity": "critical",
+                "message": f"Water Quality - Contamination risk: turbidity {reading.turbidity}NTU (threshold: 5NTU)",
+            })
+        if reading.water_level is not None and reading.water_level < 10:
+            alert_rules.append({
+                "alert_type": "LOW_WATER_LEVEL",
+                "severity": "critical",
+                "message": f"Water Quality - Low water level: {reading.water_level}% (threshold: 10%)",
+            })
+        if reading.flow_rate is not None and (reading.flow_rate < 0.5 or reading.flow_rate > 50):
+            alert_rules.append({
+                "alert_type": "FLOW_ANOMALY",
+                "severity": "warning",
+                "message": f"Water Quality - Flow anomaly: {reading.flow_rate}L/min (normal: 0.5-50L/min)",
+            })
 
-    if alerts_created:
-        await db.commit()
-        for alert in alerts_created:
-            await db.refresh(alert)
+    elif mt == "warehouse":
+        if reading.temperature is not None:
+            if reading.temperature > 35:
+                alert_rules.append({
+                    "alert_type": "TEMPERATURE_HIGH",
+                    "severity": "critical",
+                    "message": f"Warehouse - Temperature high: {reading.temperature}C (threshold: 35C)",
+                })
+            elif reading.temperature < 5:
+                alert_rules.append({
+                    "alert_type": "TEMPERATURE_LOW",
+                    "severity": "warning",
+                    "message": f"Warehouse - Temperature low: {reading.temperature}C (threshold: 5C)",
+                })
+        if reading.humidity is not None and reading.humidity > 80:
+            alert_rules.append({
+                "alert_type": "HUMIDITY_HIGH",
+                "severity": "warning",
+                "message": f"Warehouse - Humidity high: {reading.humidity}% (threshold: 80%)",
+            })
+        if reading.motion_detected:
+            alert_rules.append({
+                "alert_type": "MOTION_DETECTED",
+                "severity": "info",
+                "message": "Warehouse - Motion detected in zone",
+            })
+        if reading.air_quality is not None and reading.air_quality < 50:
+            alert_rules.append({
+                "alert_type": "AIR_QUALITY_BAD",
+                "severity": "warning",
+                "message": f"Warehouse - Air quality poor: {reading.air_quality}AQI (threshold: 50)",
+            })
+        if reading.occupancy is not None and reading.occupancy > 50:
+            alert_rules.append({
+                "alert_type": "OCCUPANCY_CRITICAL",
+                "severity": "warning",
+                "message": f"Warehouse - High occupancy: {reading.occupancy} (threshold: 50)",
+            })
 
-    return alerts_created
+    if reading.risk_score and reading.risk_score >= 80:
+        alert_rules.append({
+            "alert_type": "HIGH_RISK_SCORE",
+            "severity": "critical",
+            "message": f"High risk score: {reading.risk_score} (threshold: 80)",
+        })
+    elif reading.risk_score and reading.risk_score >= 60:
+        alert_rules.append({
+            "alert_type": "ELEVATED_RISK_SCORE",
+            "severity": "warning",
+            "message": f"Elevated risk score: {reading.risk_score} (threshold: 60)",
+        })
 
-
-async def list_alerts(
-    db: AsyncSession,
-    device_id=None,
-    zone=None,
-    level=None,
-    resolved=None,
-    skip=0,
-    limit=100,
-):
-    from sqlalchemy import select, func
-
-    query = select(Alert)
-    count_query = select(func.count(Alert.id))
-
-    if device_id:
-        query = query.where(Alert.device_id == device_id)
-        count_query = count_query.where(Alert.device_id == device_id)
-    if zone:
-        query = query.where(Alert.zone == zone)
-        count_query = count_query.where(Alert.zone == zone)
-    if level:
-        query = query.where(Alert.level == level)
-        count_query = count_query.where(Alert.level == level)
-    if resolved is not None:
-        query = query.where(Alert.resolved == resolved)
-        count_query = count_query.where(Alert.resolved == resolved)
-
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
-
-    query = query.order_by(Alert.created_at.desc()).offset(skip).limit(limit)
-    result = await db.execute(query)
-    alerts = result.scalars().all()
-    return alerts, total
-
-
-async def get_active_alerts(db: AsyncSession):
-    query = select(Alert).where(Alert.resolved == False).order_by(Alert.created_at.desc())
-    result = await db.execute(query)
-    return result.scalars().all()
-
-
-async def resolve_alert(db: AsyncSession, alert_id):
-    from sqlalchemy import select
-    result = await db.execute(select(Alert).where(Alert.id == alert_id))
-    alert = result.scalar_one_or_none()
-    if not alert:
-        return None
-    alert.resolved = True
-    alert.resolved_at = datetime.utcnow()
-    await db.commit()
-    await db.refresh(alert)
-    return alert
-
-
-async def get_alert_stats(db: AsyncSession):
-    from sqlalchemy import select
-
-    level_counts = {}
-    for level_val in ["info", "warning", "critical"]:
-        result = await db.execute(
-            select(func.count(Alert.id)).where(
-                Alert.level == level_val,
-                Alert.resolved == False,
+    for rule in alert_rules:
+        existing = await db.execute(
+            select(Alert).where(
+                Alert.device_id == reading.device_id,
+                Alert.alert_type == rule["alert_type"],
+                Alert.acknowledged == False,
             )
         )
-        level_counts[level_val] = result.scalar()
+        if not existing.scalar_one_or_none():
+            alert = Alert(
+                device_id=reading.device_id,
+                module_type=mt,
+                alert_type=rule["alert_type"],
+                severity=rule["severity"],
+                message=rule["message"],
+                acknowledged=False,
+            )
+            db.add(alert)
 
-    type_counts_result = await db.execute(
-        select(Alert.alert_type, func.count(Alert.id))
-        .where(Alert.resolved == False)
-        .group_by(Alert.alert_type)
-    )
-    type_counts = {row[0]: row[1] for row in type_counts_result.all()}
-
-    return {
-        "by_level": level_counts,
-        "by_type": type_counts,
-        "total_active": sum(level_counts.values()),
-    }
+    await db.flush()

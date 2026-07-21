@@ -1,117 +1,48 @@
-from typing import Optional
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, Query
+﻿from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-
-from src.database import get_db
-from src.models import User, SensorReading, Alert, Analytics, Report
-from src.exports.excel_export import (
-    export_sensor_data,
-    export_alerts,
-    export_analytics,
-    export_reports,
-)
-from src.middleware.auth import get_current_user
+from src.database.connection import get_db
+from src.exports.excel_export import ExcelExportService
 
 router = APIRouter(tags=["Export"])
 
+VALID_MODULE_TYPES = ("cold_storage", "machine_health", "water_quality", "warehouse")
+
 
 @router.get("/api/export/excel")
-async def export_sensor_excel(
+async def export_excel(
+    type: str = Query(..., description="Export type: sensors, alerts, analytics, reports, devices"),
+    module_type: Optional[str] = Query(None),
     device_id: Optional[str] = Query(None),
-    zone: Optional[str] = Query(None),
-    start_date: Optional[datetime] = Query(None),
-    end_date: Optional[datetime] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    query = select(SensorReading)
-    if device_id:
-        query = query.where(SensorReading.device_id == device_id)
-    if zone:
-        query = query.where(SensorReading.zone == zone)
-    if start_date:
-        query = query.where(SensorReading.created_at >= start_date)
-    if end_date:
-        query = query.where(SensorReading.created_at <= end_date)
-    query = query.order_by(SensorReading.created_at.desc()).limit(10000)
+    service = ExcelExportService(db)
 
-    result = await db.execute(query)
-    readings = result.scalars().all()
+    if type == "sensors":
+        output = await service.export_sensor_data(device_id, start_date, end_date, module_type)
+        filename = f"sensor_data_{module_type or 'all'}_{device_id or 'all'}.xlsx"
+    elif type == "alerts":
+        output = await service.export_alerts(device_id, severity, module_type)
+        filename = f"alerts_{module_type or 'all'}_{severity or 'all'}.xlsx"
+    elif type == "analytics":
+        output = await service.export_analytics(device_id, start_date, end_date, module_type)
+        filename = f"analytics_{module_type or 'all'}_{device_id or 'all'}.xlsx"
+    elif type == "reports":
+        output = await service.export_reports(report_type, module_type)
+        filename = f"reports_{report_type or 'all'}_{module_type or 'all'}.xlsx"
+    elif type == "devices":
+        output = await service.export_device_logs(device_id, module_type)
+        filename = f"devices_{module_type or 'all'}_{device_id or 'all'}.xlsx"
+    else:
+        return {"error": f"Unknown export type: {type}. Valid types: sensors, alerts, analytics, reports, devices"}
 
-    buffer = export_sensor_data(readings)
     return StreamingResponse(
-        buffer,
+        output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=sensor_data.xlsx"},
-    )
-
-
-@router.get("/api/export/alerts")
-async def export_alerts_excel(
-    zone: Optional[str] = Query(None),
-    level: Optional[str] = Query(None),
-    resolved: Optional[bool] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    query = select(Alert)
-    if zone:
-        query = query.where(Alert.zone == zone)
-    if level:
-        query = query.where(Alert.level == level)
-    if resolved is not None:
-        query = query.where(Alert.resolved == resolved)
-    query = query.order_by(Alert.created_at.desc()).limit(10000)
-
-    result = await db.execute(query)
-    alerts = result.scalars().all()
-
-    buffer = export_alerts(alerts)
-    return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=alerts.xlsx"},
-    )
-
-
-@router.get("/api/export/analytics")
-async def export_analytics_excel(
-    zone: Optional[str] = Query(None),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    query = select(Analytics)
-    if zone:
-        query = query.where(Analytics.zone == zone)
-    query = query.order_by(Analytics.created_at.desc()).limit(10000)
-
-    result = await db.execute(query)
-    analytics = result.scalars().all()
-
-    buffer = export_analytics(analytics)
-    return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=analytics.xlsx"},
-    )
-
-
-@router.get("/api/export/reports")
-async def export_reports_excel(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    query = select(Report).order_by(Report.created_at.desc()).limit(10000)
-    result = await db.execute(query)
-    reports = result.scalars().all()
-
-    buffer = export_reports(reports)
-    return StreamingResponse(
-        buffer,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=reports.xlsx"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )

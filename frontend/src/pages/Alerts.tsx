@@ -1,185 +1,139 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import {
-  Bell,
-  AlertTriangle,
-  CheckCircle,
-  Info,
-  Filter,
-} from 'lucide-react'
-import { AlertTable } from '@/components/AlertTable'
-import { AlertTimeline } from '@/charts/AlertTimeline'
-import { LoadingSkeleton } from '@/components/LoadingSkeleton'
-import { useAlerts, useAlertStats, useResolveAlert } from '@/hooks/useAlerts'
-import { cn } from '@/lib/utils'
+import { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Bell, Filter, CheckCircle, AlertTriangle } from 'lucide-react'
+import { useAlerts, useAcknowledgeAlert, useDeleteAlert } from '../hooks/useAlerts'
+import AlertItem from '../components/AlertItem'
+import ModuleTabBar from '../components/ModuleTabBar'
+import { PageSkeleton } from '../components/LoadingSkeleton'
+import { pageTransition } from '../animations/slideIn'
+import { staggerContainer, staggerItem } from '../animations/fadeIn'
+import clsx from 'clsx'
 
-export function Alerts() {
-  const [filterLevel, setFilterLevel] = useState<string>('all')
-  const [filterResolved, setFilterResolved] = useState<boolean>(false)
-  const { data: alerts, isLoading } = useAlerts({
-    level: filterLevel === 'all' ? undefined : filterLevel,
-    resolved: filterResolved,
-  })
-  const { data: stats } = useAlertStats()
-  const resolveAlert = useResolveAlert()
+const severityOptions = ['All', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 
-  const handleResolve = async (alert: { id: number }) => {
-    await resolveAlert.mutateAsync(alert.id)
+export default function Alerts() {
+  const [severityFilter, setSeverityFilter] = useState('All')
+  const [acknowledgedFilter, setAcknowledgedFilter] = useState<'all' | 'acknowledged' | 'unacknowledged'>('all')
+  const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set())
+  const { data: alerts = [], isLoading } = useAlerts()
+  const acknowledgeMutation = useAcknowledgeAlert()
+  const deleteMutation = useDeleteAlert()
+
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter((alert) => {
+      const matchesSeverity = severityFilter === 'All' || alert.severity === severityFilter
+      const matchesAck = acknowledgedFilter === 'all' || (acknowledgedFilter === 'acknowledged' && alert.acknowledged) || (acknowledgedFilter === 'unacknowledged' && !alert.acknowledged)
+      return matchesSeverity && matchesAck
+    })
+  }, [alerts, severityFilter, acknowledgedFilter])
+
+  const alertStats = useMemo(() => ({
+    critical: alerts.filter((a) => a.severity === 'CRITICAL' && !a.acknowledged).length,
+    high: alerts.filter((a) => a.severity === 'HIGH' && !a.acknowledged).length,
+    medium: alerts.filter((a) => a.severity === 'MEDIUM' && !a.acknowledged).length,
+    low: alerts.filter((a) => a.severity === 'LOW' && !a.acknowledged).length,
+    unacknowledged: alerts.filter((a) => !a.acknowledged).length,
+  }), [alerts])
+
+  const toggleSelectAll = () => {
+    if (selectedAlerts.size === filteredAlerts.length) setSelectedAlerts(new Set())
+    else setSelectedAlerts(new Set(filteredAlerts.map((a) => a.id)))
   }
 
-  const statCards = [
-    {
-      label: 'Total Alerts',
-      value: stats?.total || 0,
-      icon: Bell,
-      color: 'text-blue-400',
-      bg: 'bg-blue-500/10',
-    },
-    {
-      label: 'Active',
-      value: stats?.active || 0,
-      icon: AlertTriangle,
-      color: 'text-yellow-400',
-      bg: 'bg-yellow-500/10',
-    },
-    {
-      label: 'Resolved',
-      value: stats?.resolved || 0,
-      icon: CheckCircle,
-      color: 'text-emerald-400',
-      bg: 'bg-emerald-500/10',
-    },
-    {
-      label: 'Critical',
-      value: stats?.by_level?.critical || 0,
-      icon: AlertTriangle,
-      color: 'text-red-400',
-      bg: 'bg-red-500/10',
-    },
-  ]
+  const batchAcknowledge = () => {
+    selectedAlerts.forEach((id) => acknowledgeMutation.mutate(id))
+    setSelectedAlerts(new Set())
+  }
+
+  if (isLoading) return <PageSkeleton />
 
   return (
-    <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h1 className="text-2xl font-bold tracking-tight">Alerts</h1>
-        <p className="text-sm text-muted-foreground">
-          Monitor and manage system alerts
-        </p>
-      </motion.div>
+    <motion.div variants={pageTransition} initial="hidden" animate="visible" exit="exit">
+      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-6">
+        <motion.div variants={staggerItem}><ModuleTabBar /></motion.div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((card, index) => {
-          const Icon = card.icon
-          return (
-            <motion.div
-              key={card.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.08 }}
-              className="glass-card p-5"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className={cn('flex h-10 w-10 items-center justify-center rounded-xl', card.bg)}>
-                  <Icon className={cn('h-5 w-5', card.color)} />
-                </div>
+        <motion.div variants={staggerItem} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-100">Alert Management</h2>
+            <p className="text-sm text-gray-400">{alertStats.unacknowledged} unacknowledged alerts</p>
+          </div>
+          {selectedAlerts.size > 0 && (
+            <motion.button initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={batchAcknowledge} className="btn-success">
+              <CheckCircle className="w-4 h-4" /> Acknowledge ({selectedAlerts.size})
+            </motion.button>
+          )}
+        </motion.div>
+
+        <motion.div variants={staggerItem} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { label: 'Critical', count: alertStats.critical, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'High', count: alertStats.high, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+            { label: 'Medium', count: alertStats.medium, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+            { label: 'Low', count: alertStats.low, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          ].map((stat, index) => (
+            <motion.div key={stat.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className={clsx('glass-card p-4 flex items-center gap-3', stat.bg)}>
+              <AlertTriangle className={clsx('w-5 h-5', stat.color)} />
+              <div>
+                <p className="text-2xl font-bold text-gray-100">{stat.count}</p>
+                <p className="text-xs text-gray-400">{stat.label}</p>
               </div>
-              <p className="text-sm text-muted-foreground">{card.label}</p>
-              <p className="text-2xl font-bold tracking-tight">{card.value}</p>
             </motion.div>
-          )
-        })}
-      </div>
+          ))}
+        </motion.div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-wrap items-center gap-3"
-      >
-        <div className="flex items-center gap-2">
-          <Filter className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Level:</span>
-          <div className="flex gap-1">
-            {['all', 'critical', 'warning', 'info'].map((level) => (
-              <button
-                key={level}
-                onClick={() => setFilterLevel(level)}
-                className={cn(
-                  'rounded-lg px-3 py-1 text-xs font-medium capitalize transition-colors',
-                  filterLevel === level
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-white/[0.04]'
-                )}
-              >
-                {level}
-              </button>
-            ))}
+        <motion.div variants={staggerItem} className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-gray-400">Severity:</span>
+            <div className="flex flex-wrap gap-1">
+              {severityOptions.map((severity) => (
+                <button key={severity} onClick={() => setSeverityFilter(severity)}
+                  className={clsx('px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200',
+                    severityFilter === severity ? 'bg-cold-500/20 text-cold-400 border border-cold-500/30' : 'bg-gray-800/50 text-gray-400 border border-transparent hover:text-gray-200')}>
+                  {severity}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Status:</span>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setFilterResolved(false)}
-              className={cn(
-                'rounded-lg px-3 py-1 text-xs font-medium transition-colors',
-                !filterResolved
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-white/[0.04]'
-              )}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setFilterResolved(true)}
-              className={cn(
-                'rounded-lg px-3 py-1 text-xs font-medium transition-colors',
-                filterResolved
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-white/[0.04]'
-              )}
-            >
-              Resolved
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      <AlertTable
-        alerts={alerts || []}
-        onResolve={handleResolve}
-        loading={isLoading}
-      />
-
-      <AlertTimeline />
-
-      {stats?.by_type && Object.keys(stats.by_type).length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="glass-card p-5"
-        >
-          <h3 className="mb-4 section-title">Alert Types Breakdown</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {Object.entries(stats.by_type).map(([type, count], index) => (
-              <motion.div
-                key={type}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 + index * 0.05 }}
-                className="rounded-lg bg-white/[0.02] p-3"
-              >
-                <p className="text-xs text-muted-foreground capitalize">{type.replace(/_/g, ' ')}</p>
-                <p className="text-lg font-bold">{count as number}</p>
-              </motion.div>
-            ))}
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <span className="text-sm text-gray-400">Status:</span>
+            <select value={acknowledgedFilter} onChange={(e) => setAcknowledgedFilter(e.target.value as typeof acknowledgedFilter)} className="select-field w-auto">
+              <option value="all">All</option><option value="unacknowledged">Unacknowledged</option><option value="acknowledged">Acknowledged</option>
+            </select>
           </div>
         </motion.div>
-      )}
-    </div>
+
+        {filteredAlerts.length > 0 && (
+          <motion.div variants={staggerItem} className="flex items-center gap-3">
+            <button onClick={toggleSelectAll} className={clsx('flex items-center gap-2 text-sm transition-colors', selectedAlerts.size === filteredAlerts.length ? 'text-cold-400' : 'text-gray-500 hover:text-gray-300')}>
+              <div className={clsx('w-4 h-4 rounded border transition-colors', selectedAlerts.size === filteredAlerts.length ? 'bg-cold-500 border-cold-500' : 'border-gray-600')} />Select All
+            </button>
+            <span className="text-xs text-gray-500">{filteredAlerts.length} alerts</span>
+          </motion.div>
+        )}
+
+        <motion.div variants={staggerItem} className="space-y-2">
+          <AnimatePresence>
+            {filteredAlerts.length === 0 ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-card p-12 text-center">
+                <Bell className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                <p className="text-gray-400">No alerts matching filters</p>
+                <p className="text-sm text-gray-500 mt-1">All clear!</p>
+              </motion.div>
+            ) : (
+              filteredAlerts.map((alert, index) => (
+                <motion.div key={alert.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ delay: index * 0.03 }} className="flex items-center gap-3">
+                  <button onClick={() => { const next = new Set(selectedAlerts); if (next.has(alert.id)) next.delete(alert.id); else next.add(alert.id); setSelectedAlerts(next) }}
+                    className={clsx('w-4 h-4 rounded border transition-colors flex-shrink-0', selectedAlerts.has(alert.id) ? 'bg-cold-500 border-cold-500' : 'border-gray-600')} />
+                  <div className="flex-1">
+                    <AlertItem alert={alert} onAcknowledge={(id) => acknowledgeMutation.mutate(id)} onDelete={(id) => deleteMutation.mutate(id)} index={index} />
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </motion.div>
+    </motion.div>
   )
 }

@@ -1,18 +1,24 @@
 from pydantic_settings import BaseSettings
-from functools import lru_cache
+from typing import List
 
 
-class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://user:pass@localhost:5432/coldstorage"
-    SECRET_KEY: str = "your-secret-key-change-in-production"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-    CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]
+class DatabaseSettings(BaseSettings):
+    DATABASE_URL: str = "postgresql://user:password@localhost:5432/cold_storage"
+    JWT_SECRET: str = "your-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_MINUTES: int = 1440
+    CORS_ORIGINS: str = "http://localhost:5173"
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_EMAIL: str = "admin@iot-suite.com"
+    ADMIN_PASSWORD: str = "admin123"
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
-@lru_cache()
-def get_settings():
-    return Settings()
+settings = DatabaseSettings()

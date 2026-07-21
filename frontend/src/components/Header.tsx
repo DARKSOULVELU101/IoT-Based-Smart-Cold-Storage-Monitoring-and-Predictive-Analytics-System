@@ -1,199 +1,183 @@
+import { useState, useRef, useEffect } from 'react'
+import { Menu, Bell, Search, X, Check } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useRef, useEffect } from 'react'
-import {
-  Search,
-  Bell,
-  LogOut,
-  User,
-  ChevronRight,
-} from 'lucide-react'
-import { useAuthStore } from '@/store/authStore'
-import { useActiveAlerts } from '@/hooks/useAlerts'
-import { cn } from '@/lib/utils'
+import clsx from 'clsx'
+import { useAppStore } from '../store/appStore'
+import { useUnreadNotificationCount, useNotifications } from '../hooks/useNotifications'
+import { format } from 'date-fns'
+import apiClient from '../services/api'
 
-const routeNames: Record<string, string> = {
+const pageNames: Record<string, string> = {
   '/': 'Dashboard',
   '/devices': 'Devices',
-  '/zones': 'Zone Comparison',
   '/analytics': 'Analytics',
   '/alerts': 'Alerts',
   '/reports': 'Reports',
   '/settings': 'Settings',
+  '/maintenance': 'Maintenance',
+  '/cold-storage': 'Cold Storage',
+  '/machine-health': 'Machine Health',
+  '/water-quality': 'Water Quality',
+  '/warehouse': 'Warehouse',
+  '/login': 'Login',
 }
 
-export function Header() {
+const moduleBreadcrumbs: Record<string, string[]> = {
+  '/cold-storage': ['Modules', 'Cold Storage'],
+  '/machine-health': ['Modules', 'Machine Health'],
+  '/water-quality': ['Modules', 'Water Quality'],
+  '/warehouse': ['Modules', 'Warehouse'],
+}
+
+export default function Header() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuthStore()
-  const { data: activeAlerts } = useActiveAlerts()
-  const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
+  const { setSidebarMobileOpen, notificationsOpen, setNotificationsOpen } = useAppStore()
+  const { data: unreadCount = 0 } = useUnreadNotificationCount()
+  const { data: notifications = [] } = useNotifications()
   const [searchQuery, setSearchQuery] = useState('')
-  const userMenuRef = useRef<HTMLDivElement>(null)
+  const [searchFocused, setSearchFocused] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
 
-  const pageTitle = routeNames[location.pathname] || 'Dashboard'
-  const alertCount = activeAlerts?.length || 0
+  const breadcrumbs = moduleBreadcrumbs[location.pathname]
+  const currentPage = pageNames[location.pathname] || location.pathname.split('/').pop() || 'Dashboard'
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setShowUserMenu(false)
-      }
+    function handleClick(e: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setShowNotifications(false)
+        setNotificationsOpen(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [setNotificationsOpen])
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  const handleMarkAllRead = async () => {
+    try {
+      await apiClient.notifications.markAllRead()
+    } catch {}
   }
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/[0.06] bg-card/40 px-6 backdrop-blur-xl">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>ColdWatch</span>
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-foreground">{pageTitle}</span>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <div className="relative hidden md:block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search devices, alerts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="glass-input w-64 pl-10 text-sm"
-          />
-        </div>
-
-        <div className="relative" ref={notifRef}>
+    <header className="glass-header sticky top-0 z-20 px-4 lg:px-6 py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative rounded-lg p-2 text-muted-foreground transition-colors hover:bg-white/[0.04] hover:text-foreground"
+            onClick={() => setSidebarMobileOpen(true)}
+            className="lg:hidden p-2 rounded-lg hover:bg-gray-800 text-gray-400 transition-colors"
           >
-            <Bell className="h-5 w-5" />
-            {alertCount > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white"
-              >
-                {alertCount > 99 ? '99+' : alertCount}
-              </motion.span>
-            )}
+            <Menu className="w-5 h-5" />
           </button>
+          <div>
+            {breadcrumbs && (
+              <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-0.5">
+                {breadcrumbs.map((b, i) => (
+                  <span key={i} className="flex items-center gap-1.5">
+                    {i > 0 && <span>/</span>}
+                    <span>{b}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+            <h1 className="text-lg font-semibold text-gray-100">{currentPage}</h1>
+          </div>
+        </div>
 
-          <AnimatePresence>
-            {showNotifications && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-white/[0.08] bg-card/95 shadow-2xl backdrop-blur-xl"
-              >
-                <div className="border-b border-white/[0.06] p-4">
-                  <h3 className="text-sm font-semibold">Notifications</h3>
-                  <p className="text-xs text-muted-foreground">{alertCount} active alerts</p>
-                </div>
-                <div className="max-h-80 overflow-y-auto p-2">
-                  {activeAlerts?.slice(0, 5).map((alert) => (
-                    <div
-                      key={alert.id}
-                      className="flex items-start gap-3 rounded-lg p-3 transition-colors hover:bg-white/[0.04]"
-                    >
-                      <div
-                        className={cn(
-                          'mt-0.5 h-2 w-2 shrink-0 rounded-full',
-                          alert.level === 'critical' && 'bg-red-400',
-                          alert.level === 'warning' && 'bg-yellow-400',
-                          alert.level === 'info' && 'bg-blue-400'
-                        )}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm">{alert.message}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {alert.device_name} · {alert.zone}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {(!activeAlerts || activeAlerts.length === 0) && (
-                    <div className="p-4 text-center text-sm text-muted-foreground">
-                      No active notifications
-                    </div>
-                  )}
-                </div>
-                {alertCount > 0 && (
-                  <div className="border-t border-white/[0.06] p-2">
-                    <button
-                      onClick={() => {
-                        navigate('/alerts')
-                        setShowNotifications(false)
-                      }}
-                      className="w-full rounded-lg py-2 text-center text-sm text-primary transition-colors hover:bg-white/[0.04]"
-                    >
-                      View all alerts
-                    </button>
-                  </div>
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center">
+            <div className={clsx(
+              'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all duration-200',
+              searchFocused
+                ? 'bg-gray-800 border-gray-700 w-72'
+                : 'bg-transparent border-transparent hover:bg-gray-800/50'
+            )}>
+              <Search className="w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search devices, alerts..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={clsx(
+                  'bg-transparent outline-none text-sm text-gray-200 placeholder-gray-500 transition-all duration-200',
+                  searchFocused ? 'w-full' : 'w-0'
                 )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="relative" ref={userMenuRef}>
-          <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="flex items-center gap-2 rounded-lg p-1.5 transition-colors hover:bg-white/[0.04]"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-cyan-400">
-              <User className="h-4 w-4 text-white" />
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+              />
             </div>
-            <span className="hidden text-sm font-medium md:block">
-              {user?.username || 'Admin'}
-            </span>
-          </button>
+          </div>
 
-          <AnimatePresence>
-            {showUserMenu && (
-              <motion.div
-                initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                className="absolute right-0 top-full z-50 mt-2 w-48 overflow-hidden rounded-xl border border-white/[0.08] bg-card/95 shadow-2xl backdrop-blur-xl"
-              >
-                <div className="p-1">
-                  <button
-                    onClick={() => {
-                      navigate('/settings')
-                      setShowUserMenu(false)
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/[0.04] hover:text-foreground"
-                  >
-                    <User className="h-4 w-4" />
-                    Profile
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign out
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 transition-colors relative"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            <AnimatePresence>
+              {notificationsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  className="absolute right-0 top-full mt-2 w-80 glass-strong rounded-xl shadow-2xl overflow-hidden z-50"
+                >
+                  <div className="flex items-center justify-between p-3 border-b border-gray-800/50">
+                    <span className="text-sm font-semibold text-gray-200">Notifications</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-xs text-cold-400 hover:text-cold-300"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-6 text-center text-sm text-gray-500">
+                        No notifications
+                      </div>
+                    ) : (
+                      notifications.slice(0, 10).map((n) => (
+                        <div
+                          key={n.id}
+                          className={clsx(
+                            'p-3 border-b border-gray-800/30 hover:bg-gray-800/30 transition-colors',
+                            !n.read && 'bg-cold-500/5'
+                          )}
+                        >
+                          <div className="flex items-start gap-2">
+                            <div className={clsx(
+                              'w-2 h-2 rounded-full mt-1.5 flex-shrink-0',
+                              n.type === 'error' && 'bg-red-400',
+                              n.type === 'warning' && 'bg-amber-400',
+                              n.type === 'success' && 'bg-emerald-400',
+                              n.type === 'info' && 'bg-cold-400',
+                            )} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-gray-200">{n.title}</p>
+                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</p>
+                              <p className="text-[10px] text-gray-600 mt-1">
+                                {format(new Date(n.createdAt), 'MMM d, HH:mm')}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </header>
