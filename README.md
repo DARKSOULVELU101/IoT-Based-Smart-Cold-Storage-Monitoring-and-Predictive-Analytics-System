@@ -1,278 +1,303 @@
-# IoT-Based Smart Cold Storage Monitoring and Predictive Analytics System
+# Industrial IoT Analytics Suite
 
-A production-grade IoT platform for monitoring cold storage environments with real-time dashboards, predictive analytics, alert management, and compliance reporting.
+![Build](https://img.shields.io/badge/build-passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-orange)
+![Python](https://img.shields.io/badge/python-3.11+-yellow)
+![React](https://img.shields.io/badge/react-18.3-61dafb)
+![FastAPI](https://img.shields.io/badge/fastapi-0.115-009688)
+
+An enterprise-grade IoT platform for real-time monitoring, predictive analytics, and intelligent alerting across four industrial modules: Cold Storage, Machine Health, Water Quality, and Warehouse management.
+
+## Executive Summary
+
+This platform provides end-to-end IoT monitoring from ESP32 microcontrollers (simulated via Wokwi) through a FastAPI backend to a modern React dashboard. It supports multiple simultaneous monitoring modules, each with specialized sensors, risk calculations, and alert systems. The platform includes predictive analytics powered by scikit-learn, comprehensive reporting, Excel export, and maintenance scheduling.
+
+## Features
+
+### Cold Storage Module
+- DHT22 temperature/humidity monitoring
+- Door open detection with timer tracking
+- Power failure detection
+- Gas level monitoring (MQ-136 sensor)
+- Compressor current monitoring
+- 0-100 risk score calculation
+- FDA/HACCP compliance reporting
+
+### Machine Health Module
+- Vibration monitoring for bearing wear detection
+- Motor temperature tracking
+- Current and voltage monitoring
+- Health score (0-100) with weighted factors
+- Predictive failure analysis (Isolation Forest)
+- Automatic safety relay shutdown
+
+### Water Quality Module
+- pH level monitoring (0-14)
+- Total Dissolved Solids (TDS) tracking
+- Turbidity measurement
+- Chlorine level monitoring
+- Water level and flow rate
+- Contamination risk assessment (LOW/MEDIUM/HIGH)
+
+### Warehouse Module
+- Temperature and humidity monitoring
+- PIR motion detection
+- Ultrasonic distance/occupancy tracking
+- Air quality monitoring (MQ-135)
+- Storage utilization calculation
+- HVAC control relay
+
+### Platform Features
+- JWT authentication with role-based access (admin/operator/viewer)
+- Real-time WebSocket data streaming
+- 9 alert rule evaluations per sensor reading
+- Predictive analytics with scikit-learn
+- Excel export (sensors, alerts, analytics, reports)
+- Report generation (daily, weekly, monthly, compliance, maintenance, audit)
+- Maintenance scheduling with auto-reminders
+- Rate limiting (120 req/min)
+- Fully responsive dark dashboard with glassmorphism UI
+- 7 chart types (Line, Area, Bar, Radar, Scatter, Heatmap, Timeline)
+- Framer Motion animations throughout
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────────┐
-│   ESP32      │────▶│  FastAPI      │────▶│  PostgreSQL   │────▶│  React Dashboard  │
-│  (Wokwi)    │     │  Backend      │     │  (Neon)       │     │  (Vercel)         │
-│             │     │  (Render)     │     │              │     │                   │
-│ DHT22       │     │ REST API      │     │ 7 Tables     │     │ Recharts          │
-│ Door Switch │     │ JWT Auth      │     │ Indexed      │     │ Framer Motion     │
-│ Gas Sensor  │     │ Rate Limiting │     │ UUID PKs     │     │ Tailwind CSS      │
-│ Current     │     │ ML Analytics  │     │ JSONB        │     │ Shadcn UI         │
-│ OLED + LEDs │     │ Excel Export  │     │              │     │ React Query       │
-│ Buzzer      │     │ Alert Engine  │     │              │     │ Zustand           │
-└─────────────┘     └──────────────┘     └──────────────┘     └──────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     IoT Analytics Suite                         │
+├──────────────┬──────────────┬──────────────┬───────────────────┤
+│ Cold Storage │   Machine    │   Water      │   Warehouse       │
+│   Module     │   Health     │   Quality    │   Module          │
+├──────────────┴──────────────┴──────────────┴───────────────────┤
+│              ESP32 Microcontrollers (Wokwi / Physical)         │
+├─────────────────────────────────────────────────────────────────┤
+│                   WiFi (REST API / HTTPS)                      │
+├─────────────────────────────────────────────────────────────────┤
+│              FastAPI Backend (Python 3.11)                      │
+│   JWT Auth | Rate Limiting | Alert Engine | Analytics           │
+├─────────────────────────────────────────────────────────────────┤
+│              PostgreSQL (Neon Cloud)                             │
+├─────────────────────────────────────────────────────────────────┤
+│              Analytics Engine                                    │
+│   Pandas | Scikit-Learn | Predictive Models                    │
+├─────────────────────────────────────────────────────────────────┤
+│              React Frontend (TypeScript + Vite)                  │
+│   Dashboard | Charts | Export | Reports | WebSocket             │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-## Features
-
-### Hardware (ESP32 + Wokwi)
-- DHT22 temperature/humidity monitoring (2-8°C safe range)
-- Door open/close detection with timer
-- Power failure detection
-- Gas leak detection (MQ sensor)
-- Compressor current monitoring
-- SSD1306 OLED display
-- Status LEDs (Green/Yellow/Red) + Buzzer
-- 0-100 spoilage risk score calculation
-- WiFi telemetry via REST API (every 10 seconds)
-
-### Backend (FastAPI)
-- REST API with JWT authentication
-- Role-based access control (admin/operator/viewer)
-- Auto-device detection (new ESP32s auto-registered)
-- 8-condition alert engine
-- Analytics computation (12+ metrics)
-- ML predictive analytics (Isolation Forest, Linear Regression)
-- Excel export (sensor data, alerts, analytics, reports)
-- 6 report types (daily, weekly, monthly, compliance, risk, maintenance)
-- Rate limiting and input validation
-- Full PostgreSQL database with 7 tables
-
-### Frontend (React + TypeScript)
-- Enterprise-grade dark dashboard (Azure IoT / Grafana inspired)
-- Real-time data with 5-second auto-refresh
-- 8 Recharts visualizations (line, area, bar, heatmap, radar)
-- Heavy Framer Motion animations throughout
-- Glassmorphism UI with Tailwind CSS
-- Responsive design (mobile + desktop)
-- 7 pages: Dashboard, Devices, Zones, Analytics, Alerts, Reports, Settings
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Firmware | Arduino C++, ESP32, Wokwi |
-| Backend | Python, FastAPI, SQLAlchemy |
-| Database | PostgreSQL (Neon) |
-| Frontend | React 18, TypeScript, Vite |
-| Styling | Tailwind CSS, Shadcn UI |
-| Charts | Recharts |
-| Animation | Framer Motion |
-| State | Zustand, React Query |
-| ML | Scikit-Learn, Pandas |
-| Export | OpenPyXL |
-| Auth | JWT (python-jose) |
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| Hardware | ESP32 DevKit V1 + Wokwi Simulator | - |
+| Firmware | Arduino C++, ArduinoJson, DHT22 | - |
+| Backend | Python, FastAPI, SQLAlchemy, Pydantic | 3.11+, 0.115, 2.0, 2.9 |
+| Database | PostgreSQL (Neon Cloud) | 15+ |
+| Analytics | Pandas, NumPy, Scikit-Learn | 2.2, 1.26, 1.5 |
+| Frontend | React 18, TypeScript, Vite | 18.3, 5.6, 5.4 |
+| UI | Tailwind CSS, Framer Motion, Recharts | 3.4, 11.5, 2.13 |
+| State | Zustand, React Query (TanStack) | 4.5, 5.56 |
+| Auth | JWT (python-jose), bcrypt (passlib) | 3.3, 1.7 |
+| Export | OpenPyXL (Excel), StreamingResponse | 3.1 |
 
 ## Project Structure
 
 ```
+iot-analytics-suite/
 ├── hardware/
-│   ├── esp32/              # ESP32 firmware files
-│   ├── sensors/            # Sensor documentation
-│   └── wokwi/              # Wokwi simulation files
-│       ├── sketch.ino      # Main firmware
-│       ├── diagram.json    # Wokwi circuit diagram
-│       └── libraries.txt   # Required libraries
-│
+│   ├── cold-storage/        # ESP32 firmware, diagram, libraries
+│   │   ├── sketch.ino
+│   │   ├── diagram.json
+│   │   └── libraries.txt
+│   ├── machine-health/      # Machine health ESP32 firmware
+│   ├── water-quality/       # Water quality ESP32 firmware
+│   ├── warehouse/           # Warehouse ESP32 firmware
+│   ├── esp32/               # Shared ESP32 code
+│   ├── sensors/             # Sensor specifications
+│   └── wokwi/               # Legacy Wokwi files
 ├── backend/
-│   ├── main.py             # FastAPI application entry
-│   ├── requirements.txt    # Python dependencies
-│   ├── Dockerfile          # Container configuration
-│   ├── render.yaml         # Render deployment
+│   ├── main.py              # FastAPI application entry point
+│   ├── requirements.txt     # Python dependencies
+│   ├── .env.example         # Environment variable template
 │   └── src/
-│       ├── config.py       # Environment settings
-│       ├── database.py     # SQLAlchemy setup
-│       ├── models.py       # 7 database models
-│       ├── schemas.py      # Pydantic schemas
-│       ├── routes/         # API route handlers
-│       ├── controllers/    # Business logic
-│       ├── middleware/      # Auth, rate limiting
-│       ├── services/       # Alert, analytics, report services
-│       ├── analytics/      # ML engine + predictive analytics
-│       ├── exports/        # Excel export generation
-│       ├── alerts/         # Alert evaluation engine
-│       └── database/       # SQL schema
-│
+│       ├── config.py        # Pydantic settings management
+│       ├── routes/          # API endpoint definitions
+│       │   ├── auth.py      # Register, login, profile, users
+│       │   ├── devices.py   # Device CRUD, groups, health
+│       │   ├── readings.py  # Sensor readings (all 4 modules)
+│       │   ├── alerts.py    # Alert management and rules
+│       │   ├── analytics.py # Analytics and predictions
+│       │   ├── export.py    # Excel export streaming
+│       │   ├── reports.py   # Report generation
+│       │   ├── dashboard.py # Dashboard aggregations
+│       │   └── maintenance.py # Maintenance scheduling
+│       ├── controllers/     # Business logic layer
+│       ├── database/        # SQLAlchemy models, async connection
+│       ├── middleware/       # JWT auth, rate limiting
+│       ├── services/        # Alert evaluation service
+│       ├── analytics/       # Analytics engine, predictive models
+│       ├── exports/         # Excel export service
+│       └── reports/         # Report generator (daily-monthly+)
 ├── frontend/
+│   ├── src/
+│   │   ├── pages/           # Dashboard, Devices, Analytics, Alerts, Reports
+│   │   ├── components/      # Layout, Sidebar, StatusBadge, StatCard
+│   │   ├── charts/          # 7 Recharts visualization types
+│   │   ├── widgets/         # Overview stat widgets
+│   │   ├── animations/      # Framer Motion animation variants
+│   │   ├── hooks/           # React Query data-fetching hooks
+│   │   ├── services/        # Axios API client
+│   │   └── store/           # Zustand auth state store
 │   ├── package.json
 │   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   ├── vercel.json         # Vercel deployment
-│   └── src/
-│       ├── pages/          # 8 page components
-│       ├── components/     # 11 reusable components
-│       ├── widgets/        # 4 dashboard widgets
-│       ├── charts/         # 9 chart components
-│       ├── animations/     # 4 animation wrappers
-│       ├── hooks/          # 6 React Query hooks
-│       ├── services/       # API client
-│       ├── store/          # Zustand auth store
-│       └── lib/            # Utility functions
-│
-├── docs/                   # Documentation
-│   ├── api.md              # Full API documentation
-│   └── deployment.md       # Deployment guide
-│
-└── deployment/             # Deployment configs
-    ├── render.yaml
-    ├── vercel.json
-    ├── neon-setup.sql      # Database schema DDL
-    └── env.example         # Environment variables
+│   └── vercel.json
+├── analytics/               # Standalone analytics module
+│   ├── engine.py            # Core analytics calculations
+│   ├── predictor.py         # ML prediction models
+│   ├── anomaly.py           # Isolation Forest anomaly detection
+│   ├── risk.py              # Risk score computation
+│   └── recommendations.py   # AI-generated maintenance recommendations
+├── reports/                 # Generated report storage
+├── docs/                    # Comprehensive documentation
+│   ├── API_DOCUMENTATION.md # Full API reference
+│   ├── TESTING.md           # Testing guide
+│   ├── WOKWI_SETUP.md       # Wokwi simulator setup
+│   ├── MODULE_SPECIFICATIONS.md # Sensor and threshold specs
+│   └── ARCHITECTURE.md      # Technical architecture
+├── deployment/              # Deployment configs
+│   ├── vercel.json          # Vercel frontend config
+│   ├── render.yaml          # Render backend blueprint
+│   ├── .env.backend.example # Backend environment template
+│   ├── .env.frontend.example # Frontend environment template
+│   ├── DEPLOYMENT_GUIDE.md  # Step-by-step deployment
+│   └── deploy.ps1           # PowerShell deployment script
+└── README.md
 ```
 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 18+
 - Python 3.11+
-- PostgreSQL (or Neon account)
+- Node.js 18+
+- PostgreSQL database (or Neon account)
 
-### 1. Database Setup
-
-Create a PostgreSQL database and run the schema:
-
-```bash
-psql -U postgres -d coldstorage -f deployment/neon-setup.sql
-```
-
-### 2. Backend
+### Backend Setup
 
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Create .env file
-cp .env.example .env
-# Edit .env with your DATABASE_URL and SECRET_KEY
-
-uvicorn main:app --reload --port 8000
+cp .env.example .env            # Edit with your DATABASE_URL
+uvicorn main:app --reload       # http://localhost:8000
 ```
 
-Backend runs at: `http://localhost:8000`
-API docs at: `http://localhost:8000/docs`
+API docs: http://localhost:8000/docs
 
-### 3. Frontend
+### Frontend Setup
 
 ```bash
 cd frontend
 npm install
-npm run dev
+cp ../deployment/.env.frontend.example .env
+npm run dev                     # http://localhost:5173
 ```
 
-Frontend runs at: `http://localhost:5173`
+### Wokwi Simulation
 
-### 4. Wokwi Simulation
+1. Open https://wokwi.com/projects/new/esp32
+2. Copy `hardware/cold-storage/sketch.ino` and `diagram.json`
+3. Add libraries: DHT sensor library, Adafruit Unified Sensor, Adafruit GFX Library, Adafruit SSD1306, ArduinoJson
+4. Update `API_URL` in sketch.ino with your deployed backend URL
+5. Click Start Simulation
 
-1. Open [wokwi.com](https://wokwi.com/projects/new/esp32)
-2. Replace `sketch.ino` with `hardware/wokwi/sketch.ino`
-3. Replace `diagram.json` with `hardware/wokwi/diagram.json`
-4. Add libraries from `hardware/wokwi/libraries.txt`
-5. Update `API_URL` in `sketch.ino` to your backend URL
-6. Run simulation
+## API Overview
 
-### Default Login
+| Category | Endpoints | Description |
+|----------|-----------|-------------|
+| Authentication | `POST /api/auth/login`, `POST /api/auth/register`, `GET /api/auth/me` | JWT auth, user management |
+| Devices | `POST /api/device/register`, `GET /api/devices`, `GET /api/device/{id}` | CRUD, enable/disable, health |
+| Readings | `POST /api/readings`, `GET /api/readings`, `GET /api/readings/latest` | Telemetry for all 4 modules |
+| Alerts | `GET /api/alerts`, `GET /api/alerts/active`, `PUT /api/alerts/{id}/acknowledge` | Alert management and rules |
+| Analytics | `GET /api/analytics`, `GET /api/analytics/{id}/predict`, `GET /api/analytics/zones/compare` | Insights and predictions |
+| Reports | `POST /api/reports/generate`, `GET /api/reports/{id}/download` | Daily/weekly/monthly/compliance |
+| Export | `GET /api/export/excel?type=sensors` | Excel download |
+| Dashboard | `GET /api/dashboard/summary`, `GET /api/dashboard/realtime` | Aggregated views |
+| Maintenance | `POST /api/maintenance/schedules`, `POST /api/maintenance/{id}/trigger` | Preventive maintenance |
+| WebSocket | `ws://backend/ws` | Real-time streaming |
 
-| Username | Password | Role |
-|----------|----------|------|
-| admin | admin123 | admin |
-
-## API Endpoints
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/readings` | No | Ingest ESP32 telemetry |
-| POST | `/api/auth/login` | No | Get JWT token |
-| GET | `/health` | No | Health check |
-| GET | `/api/devices` | Yes | List devices |
-| POST | `/api/device/register` | Yes | Register device |
-| PUT | `/api/devices/{id}` | Yes | Update device |
-| DELETE | `/api/devices/{id}` | Yes | Delete device |
-| GET | `/api/readings` | Yes | Query readings |
-| GET | `/api/readings/latest` | Yes | Latest per device |
-| GET | `/api/analytics/summary` | Yes | Dashboard summary |
-| GET | `/api/analytics/zones` | Yes | Zone comparison |
-| GET | `/api/analytics/predictions/{id}` | Yes | ML predictions |
-| GET | `/api/alerts` | Yes | List alerts |
-| GET | `/api/alerts/active` | Yes | Active alerts |
-| POST | `/api/alerts/{id}/resolve` | Yes | Resolve alert |
-| GET | `/api/alerts/stats` | Yes | Alert statistics |
-| POST | `/api/reports/generate` | Yes | Generate report |
-| GET | `/api/export/excel` | Yes | Export to Excel |
-
-Full API documentation: [docs/api.md](docs/api.md)
-
-## Database Schema
-
-7 tables with UUID primary keys, proper indexes, and JSONB support:
-
-- **devices** - Registered IoT devices
-- **sensor_readings** - Time-series sensor data
-- **alerts** - Alert events with levels
-- **analytics** - Computed analytics periods
-- **reports** - Generated reports
-- **users** - User accounts with roles
-- **audit_logs** - Action audit trail
-
-Schema: [deployment/neon-setup.sql](deployment/neon-setup.sql)
-
-## Alert Conditions
-
-| Alert | Level | Trigger |
-|-------|-------|---------|
-| Temperature High | Warning/Critical | > 8°C |
-| Temperature Low | Warning | < 2°C |
-| Humidity Deviation | Warning | > 70% |
-| Door Left Open | Warning/Critical | > 15 seconds |
-| Gas Leak | Critical | > 2600 ADC |
-| Power Failure | Critical | powerAvailable = false |
-| Compressor Failure | Warning | Current > 8A |
-| High Risk Score | Critical | Risk score > 60 |
-
-## Risk Score Formula
-
-```
-riskScore = clamp(
-  temperatureRisk +    // 0-40 (deviation from 2-8°C)
-  humidityRisk +       // 0-20 (excess over 70%)
-  doorRisk +           // 0-15 (seconds open, capped)
-  powerRisk +          // 0 or 15
-  gasRisk +            // 0 or 10
-  currentRisk,         // 0 or 10
-  0, 100
-)
-```
-
-Status: SAFE (<30) | WARNING (30-59) | HIGH RISK (60-79) | CRITICAL (80-100)
+Full API reference: [docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)
 
 ## Deployment
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| Frontend | Vercel | React dashboard |
-| Backend | Render | FastAPI server |
-| Database | Neon | PostgreSQL |
+### Quick Deploy
 
-Detailed guide: [docs/deployment.md](docs/deployment.md)
+| Service | Platform | Status |
+|---------|----------|--------|
+| Backend | Render | [render.yaml](deployment/render.yaml) |
+| Frontend | Vercel | [vercel.json](deployment/vercel.json) |
+| Database | Neon | PostgreSQL connection string |
+
+### Step-by-Step
+
+1. **Database**: Create Neon project at https://neon.tech, copy connection string
+2. **Backend**: Push to GitHub, create Render web service, set environment variables
+3. **Frontend**: `cd frontend && vercel --prod`, set VITE_API_URL env var
+4. **Wokwi**: Update API_URL in sketch.ino, start simulation
+
+Detailed guide: [deployment/DEPLOYMENT_GUIDE.md](deployment/DEPLOYMENT_GUIDE.md)
+
+## Default Credentials
+
+| Role | Username | Password |
+|------|----------|----------|
+| Admin | admin | admin123 |
+
+**Change these immediately in production!**
+
+Set `ADMIN_USERNAME`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` in your backend environment variables.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [API Reference](docs/API_DOCUMENTATION.md) | Complete API endpoint documentation |
+| [Architecture](docs/ARCHITECTURE.md) | System and database architecture |
+| [Module Specs](docs/MODULE_SPECIFICATIONS.md) | Sensor thresholds and calculations |
+| [Testing Guide](docs/TESTING.md) | Backend, frontend, and integration testing |
+| [Wokwi Setup](docs/WOKWI_SETUP.md) | Simulator setup for all 4 modules |
+| [Deployment Guide](deployment/DEPLOYMENT_GUIDE.md) | Step-by-step deployment |
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT License
+MIT License - Narendravel H
 
-## Author
+Copyright (c) 2024
 
-**Narendravel H** - IoT Developer
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

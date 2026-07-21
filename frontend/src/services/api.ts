@@ -1,235 +1,302 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json' },
 })
 
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('cold-storage-auth')
-    if (token) {
-      try {
-        const parsed = JSON.parse(token)
-        if (parsed.state?.token) {
-          config.headers.Authorization = `Bearer ${parsed.state.token}`
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return config
-  },
-  (error) => Promise.reject(error)
-)
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('cold-storage-auth')
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('auth_user')
       window.location.href = '/login'
     }
     return Promise.reject(error)
   }
 )
 
-export interface Device {
-  id: number
-  name: string
-  zone: string
-  status: 'online' | 'offline' | 'disabled'
-  temperature: number
-  humidity: number
-  risk_score: number
-  compressor_current: number
-  door_status: 'open' | 'closed'
-  gas_level: number
-  power_status: 'on' | 'off'
-  last_reading_time: string
-  created_at: string
-  updated_at: string
-}
+export type ModuleType = 'cold-storage' | 'machine-health' | 'water-quality' | 'warehouse'
 
 export interface Reading {
-  id: number
-  device_id: number
-  device_name: string
+  deviceId: string
   zone: string
   temperature: number
   humidity: number
-  compressor_current: number
-  door_status: string
-  gas_level: number
-  power_status: string
-  risk_score: number
-  timestamp: string
+  doorOpen: boolean
+  doorOpenSeconds: number
+  gasLevel: number
+  compressorCurrent: number
+  compressorOn: boolean
+  powerAvailable: boolean
+  riskScore: number
+  status: 'SAFE' | 'WARNING' | 'CRITICAL' | 'OFFLINE'
+  timestamp?: string
+  module?: ModuleType
+}
+
+export interface Device {
+  id: string
+  name: string
+  zone: string
+  type: string
+  enabled: boolean
+  online: boolean
+  module: ModuleType
+  lastHeartbeat: string
+  createdAt: string
+  updatedAt: string
+  config?: Record<string, unknown>
 }
 
 export interface Alert {
-  id: number
-  device_id: number
-  device_name: string
-  zone: string
-  alert_type: string
-  level: 'info' | 'warning' | 'critical'
+  id: string
+  deviceId: string
+  deviceName: string
+  type: string
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
   message: string
-  is_resolved: boolean
-  resolved_at: string | null
-  resolved_by: string | null
-  created_at: string
+  module?: ModuleType
+  acknowledged: boolean
+  acknowledgedBy?: string
+  acknowledgedAt?: string
+  createdAt: string
 }
 
-export interface AlertStats {
-  total: number
-  active: number
-  resolved: number
-  by_level: Record<string, number>
-  by_type: Record<string, number>
+export interface AnalyticsSummary {
+  totalDevices: number
+  onlineDevices: number
+  offlineDevices: number
+  avgTemperature: number
+  avgHumidity: number
+  avgRiskScore: number
+  criticalAlerts: number
+  totalAlerts: number
+  energyConsumption: number
+  storageEfficiency: number
+  zones: ZoneAnalytics[]
+  moduleStats?: Record<ModuleType, ModuleStats>
 }
 
-export interface AnalyticsData {
-  temperature_stats: { avg: number; min: number; max: number; std_dev: number }
-  humidity_stats: { avg: number; min: number; max: number; std_dev: number }
-  risk_stats: { avg: number; min: number; max: number }
-  door_events: number
-  compressor_hours: number
-  energy_consumption: number
-  readings_count: number
-  zone_scores: Record<string, number>
-  hourly_temperature: Array<{ hour: string; avg_temp: number; min_temp: number; max_temp: number }>
-  hourly_humidity: Array<{ hour: string; avg_humidity: number }>
+export interface ModuleStats {
+  deviceCount: number
+  onlineCount: number
+  avgScore: number
+  alertCount: number
+  health: number
 }
 
-export interface DashboardSummary {
-  total_devices: number
-  online_devices: number
-  offline_devices: number
-  avg_temperature: number
-  avg_humidity: number
-  active_alerts: number
-  avg_risk_score: number
-  system_status: string
-  recent_readings: Reading[]
-  active_alerts_list: Alert[]
-  zone_summary: Record<string, { avg_temp: number; avg_humidity: number; device_count: number; avg_risk: number }>
-  temp_trend: Array<{ time: string; temperature: number }>
-  humidity_trend: Array<{ time: string; humidity: number }>
-  risk_trend: Array<{ time: string; risk: number }>
+export interface ZoneAnalytics {
+  zone: string
+  avgTemperature: number
+  avgHumidity: number
+  avgRiskScore: number
+  deviceCount: number
+  onlineCount: number
 }
 
-export interface ZoneComparison {
-  zones: Array<{
-    zone: string
-    avg_temperature: number
-    avg_humidity: number
-    avg_risk: number
-    device_count: number
-    online_count: number
-    gas_level: number
-    compressor_avg: number
-    door_events: number
-    power_status: string
-  }>
-  comparison_metrics: Array<{ metric: string; dairy: number; medicine: number; vegetable: number }>
+export interface TrendData {
+  timestamp: string
+  value: number
+  label?: string
 }
 
-export interface LoginResponse {
+export interface Prediction {
+  metric: string
+  currentValue: number
+  predictedValue: number
+  confidence: number
+  timeframe: string
+  trend: 'increasing' | 'decreasing' | 'stable'
+  recommendation: string
+}
+
+export interface Report {
+  id: string
+  type: string
+  title: string
+  status: 'PENDING' | 'GENERATING' | 'COMPLETED' | 'FAILED'
+  dateFrom: string
+  dateTo: string
+  deviceFilter?: string
+  module?: ModuleType
+  createdAt: string
+  downloadUrl?: string
+  fileSize?: number
+}
+
+export interface User {
+  id: string
+  email: string
+  name: string
+  role: string
+  avatar?: string
+  createdAt: string
+}
+
+export interface AuthResponse {
   access_token: string
   token_type: string
   user: User
 }
 
-export interface Report {
-  id: number
+export interface MaintenanceSchedule {
+  id: string
+  deviceId: string
+  deviceName: string
   type: string
-  generated_at: string
-  status: string
-  data?: Record<string, unknown>
+  title: string
+  description: string
+  scheduledDate: string
+  completedDate?: string
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE'
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  assignedTo?: string
+  module: ModuleType
+  createdAt: string
 }
 
-export interface Prediction {
-  timestamp: string
-  predicted_temperature: number
-  predicted_humidity: number
-  predicted_risk: number
-  confidence: number
+export interface Notification {
+  id: string
+  title: string
+  message: string
+  type: 'info' | 'warning' | 'error' | 'success'
+  read: boolean
+  createdAt: string
 }
 
-// Auth APIs
-export const authAPI = {
-  login: (username: string, password: string) =>
-    api.post<LoginResponse>('/auth/login', { username, password }),
-  register: (data: { username: string; email: string; password: string }) =>
-    api.post('/auth/register', data),
+const auth = {
+  login: (email: string, password: string) =>
+    api.post<AuthResponse>('/api/auth/login', { email, password }),
+  register: (name: string, email: string, password: string) =>
+    api.post<AuthResponse>('/api/auth/register', { name, email, password }),
+  getProfile: () => api.get<User>('/api/auth/profile'),
+  updateProfile: (data: Partial<User>) => api.put<User>('/api/auth/profile', data),
 }
 
-// Device APIs
-export const deviceAPI = {
-  getAll: () => api.get<Device[]>('/devices'),
-  getById: (id: number) => api.get<Device>(`/devices/${id}`),
-  create: (data: Partial<Device>) => api.post<Device>('/devices', data),
-  update: (id: number, data: Partial<Device>) => api.put<Device>(`/devices/${id}`, data),
-  delete: (id: number) => api.delete(`/devices/${id}`),
-  disable: (id: number) => api.patch(`/devices/${id}/disable`),
-  enable: (id: number) => api.patch(`/devices/${id}/enable`),
+const devices = {
+  getAll: (params?: { zone?: string; enabled?: boolean; module?: ModuleType }) =>
+    api.get<Device[]>('/api/devices', { params }),
+  getById: (id: string) => api.get<Device>(`/api/devices/${id}`),
+  register: (data: Partial<Device>) => api.post<Device>('/api/devices', data),
+  update: (id: string, data: Partial<Device>) =>
+    api.put<Device>(`/api/devices/${id}`, data),
+  delete: (id: string) => api.delete(`/api/devices/${id}`),
+  enable: (id: string) => api.post(`/api/devices/${id}/enable`),
+  disable: (id: string) => api.post(`/api/devices/${id}/disable`),
+  getHealth: () => api.get('/api/devices/health'),
+  getGroups: () => api.get('/api/device-groups'),
 }
 
-// Reading APIs
-export const readingAPI = {
-  getAll: (params?: { device_id?: number; limit?: number; offset?: number }) =>
-    api.get<Reading[]>('/readings', { params }),
-  getLatest: (limit?: number) =>
-    api.get<Reading[]>('/readings/latest', { params: { limit } }),
-  getByDevice: (deviceId: number, limit?: number) =>
-    api.get<Reading[]>(`/readings/device/${deviceId}`, { params: { limit } }),
+const readings = {
+  getLatest: (params?: { module?: ModuleType }) =>
+    api.get<Reading[]>('/api/readings/latest', { params }),
+  getAll: (params?: {
+    device_id?: string
+    zone?: string
+    module?: ModuleType
+    start_date?: string
+    end_date?: string
+    limit?: number
+    offset?: number
+  }) => api.get<Reading[]>('/api/readings', { params }),
+  getByDevice: (deviceId: string, params?: { start_date?: string; end_date?: string; limit?: number }) =>
+    api.get<Reading[]>(`/api/readings/device/${deviceId}`, { params }),
 }
 
-// Analytics APIs
-export const analyticsAPI = {
-  get: (params?: { device_id?: number; zone?: string; hours?: number }) =>
-    api.get<AnalyticsData>('/analytics', { params }),
-  getPredictions: (params?: { device_id?: number; hours?: number }) =>
-    api.get<Prediction[]>('/analytics/predictions', { params }),
+const analytics = {
+  getSummary: (params?: { start_date?: string; end_date?: string; module?: ModuleType }) =>
+    api.get<AnalyticsSummary>('/api/analytics/summary', { params }),
+  getDevice: (deviceId: string, params?: { start_date?: string; end_date?: string }) =>
+    api.get(`/api/analytics/device/${deviceId}`, { params }),
+  getTrend: (params?: { metric?: string; period?: string; device_id?: string; module?: ModuleType }) =>
+    api.get<TrendData[]>('/api/analytics/trend', { params }),
+  getPredictions: (params?: { module?: ModuleType }) =>
+    api.get<Prediction[]>('/api/analytics/predictions', { params }),
+  getZoneComparison: (params?: { module?: ModuleType }) =>
+    api.get<ZoneAnalytics[]>('/api/analytics/zones', { params }),
+  getModuleComparison: () =>
+    api.get<Record<ModuleType, ModuleStats>>('/api/analytics/modules'),
 }
 
-// Dashboard API
-export const dashboardAPI = {
-  getSummary: () => api.get<DashboardSummary>('/dashboard/summary'),
+const alerts = {
+  getAll: (params?: { severity?: string; device_id?: string; acknowledged?: boolean; module?: ModuleType }) =>
+    api.get<Alert[]>('/api/alerts', { params }),
+  getActive: (params?: { module?: ModuleType }) =>
+    api.get<Alert[]>('/api/alerts/active', { params }),
+  acknowledge: (id: string) => api.post(`/api/alerts/${id}/acknowledge`),
+  delete: (id: string) => api.delete(`/api/alerts/${id}`),
+  batchAcknowledge: (ids: string[]) => api.post('/api/alerts/batch-acknowledge', { ids }),
+  getRules: () => api.get('/api/alert-rules'),
 }
 
-// Zone API
-export const zoneAPI = {
-  getComparison: () => api.get<ZoneComparison>('/zones/comparison'),
+const reports = {
+  getAll: (params?: { module?: ModuleType }) =>
+    api.get<Report[]>('/api/reports', { params }),
+  generate: (data: {
+    type: string
+    date_from: string
+    date_to: string
+    device_id?: string
+    title?: string
+    module?: ModuleType
+  }) => api.post<Report>('/api/reports', data),
+  getById: (id: string) => api.get<Report>(`/api/reports/${id}`),
+  download: (id: string) =>
+    api.get(`/api/reports/${id}/download`, { responseType: 'blob' }),
 }
 
-// Alert APIs
-export const alertAPI = {
-  getAll: (params?: { level?: string; resolved?: boolean; device_id?: number }) =>
-    api.get<Alert[]>('/alerts', { params }),
-  getActive: () => api.get<Alert[]>('/alerts/active'),
-  resolve: (id: number) => api.patch<Alert>(`/alerts/${id}/resolve`),
-  getStats: () => api.get<AlertStats>('/alerts/stats'),
+const maintenance = {
+  getAll: (params?: { status?: string; module?: ModuleType; device_id?: string }) =>
+    api.get<MaintenanceSchedule[]>('/api/maintenance', { params }),
+  getById: (id: string) => api.get<MaintenanceSchedule>(`/api/maintenance/${id}`),
+  create: (data: Partial<MaintenanceSchedule>) =>
+    api.post<MaintenanceSchedule>('/api/maintenance', data),
+  update: (id: string, data: Partial<MaintenanceSchedule>) =>
+    api.put<MaintenanceSchedule>(`/api/maintenance/${id}`, data),
+  delete: (id: string) => api.delete(`/api/maintenance/${id}`),
+  complete: (id: string) => api.post(`/api/maintenance/${id}/complete`),
 }
 
-// Report APIs
-export const reportAPI = {
-  getAll: () => api.get<Report[]>('/reports'),
-  generate: (data: { type: string; start_date: string; end_date: string; device_id?: number }) =>
-    api.post<Report>('/reports/generate', data),
-  getById: (id: number) => api.get<Report>(`/reports/${id}`),
-  download: (id: number) =>
-    api.get(`/reports/${id}/download`, { responseType: 'blob' }),
+const dashboard = {
+  getOverview: () => api.get('/api/dashboard/overview'),
+  getModuleSummary: (module: ModuleType) =>
+    api.get(`/api/dashboard/module/${module}`),
+  getRecentActivity: () => api.get('/api/dashboard/activity'),
 }
 
-// Export API
-export const exportAPI = {
-  excel: (params?: { type?: string; start_date?: string; end_date?: string }) =>
-    api.get('/export/excel', { params, responseType: 'blob' }),
+const notifications = {
+  getAll: () => api.get<Notification[]>('/api/notifications'),
+  markRead: (id: string) => api.post(`/api/notifications/${id}/read`),
+  markAllRead: () => api.post('/api/notifications/read-all'),
+  getUnreadCount: () => api.get<{ count: number }>('/api/notifications/unread-count'),
 }
 
-export default api
+const exportData = {
+  exportExcel: (type: string, params?: Record<string, string>) =>
+    api.get(`/api/export/${type}`, { params, responseType: 'blob' }),
+}
+
+const apiClient = {
+  auth,
+  devices,
+  readings,
+  analytics,
+  alerts,
+  reports,
+  maintenance,
+  dashboard,
+  notifications,
+  exportData,
+}
+
+export default apiClient

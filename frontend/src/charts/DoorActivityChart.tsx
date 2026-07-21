@@ -1,55 +1,40 @@
-import { motion } from 'framer-motion'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
-import { useAnalytics } from '@/hooks/useAnalytics'
+import { useMemo } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { format } from 'date-fns'
+import type { Reading } from '../services/api'
 
-export function DoorActivityChart() {
-  const { data: analytics } = useAnalytics()
+interface Props {
+  readings: Reading[]
+  title?: string
+}
 
-  const chartData = analytics?.hourly_temperature?.map((d, i) => ({
-    hour: d.hour,
-    opens: Math.floor(Math.random() * 8),
-  })) || []
+export default function DoorActivityChart({ readings, title = 'Door Activity' }: Props) {
+  const chartData = useMemo(() =>
+    readings.map((r) => ({
+      time: r.timestamp ? format(new Date(r.timestamp), 'HH:mm') : '',
+      doorOpenSeconds: r.doorOpenSeconds,
+      isOpen: r.doorOpen ? 1 : 0,
+    })).reverse()
+  , [readings])
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.4 }}
-      className="glass-card p-5"
-    >
-      <h3 className="mb-4 section-title">Door Activity</h3>
-      <div className="h-[250px]">
+    <div className="glass-card p-6">
+      <h3 className="text-sm font-semibold text-gray-300 mb-4">{title}</h3>
+      <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData}>
-            <defs>
-              <linearGradient id="doorGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.8} />
-                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.2} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis dataKey="hour" stroke="rgba(255,255,255,0.3)" fontSize={11} tickLine={false} />
-            <YAxis stroke="rgba(255,255,255,0.3)" fontSize={11} tickLine={false} axisLine={false} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'rgba(15,23,42,0.9)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '8px',
-                fontSize: '12px',
-              }}
-            />
-            <Bar dataKey="opens" fill="url(#doorGrad)" radius={[4, 4, 0, 0]} animationDuration={1000} />
+          <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+            <XAxis dataKey="time" stroke="#6b7280" fontSize={11} tickLine={false} />
+            <YAxis stroke="#6b7280" fontSize={11} tickLine={false} />
+            <Tooltip />
+            <Bar dataKey="doorOpenSeconds" radius={[4, 4, 0, 0]} animationDuration={500}>
+              {chartData.map((entry, index) => (
+                <Cell key={index} fill={entry.isOpen ? '#ef4444' : '#10b981'} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </motion.div>
+    </div>
   )
 }

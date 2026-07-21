@@ -1,182 +1,109 @@
-import { useState } from 'react'
 import { motion } from 'framer-motion'
-import {
-  Server,
-  Thermometer,
-  Droplets,
-  Bell,
-  Shield,
-  Activity,
-} from 'lucide-react'
-import { StatCard } from '@/components/StatCard'
-import { DeviceOverview } from '@/widgets/DeviceOverview'
-import { TempGauge } from '@/widgets/TempGauge'
-import { RiskMeter } from '@/widgets/RiskMeter'
-import { SystemStatus } from '@/widgets/SystemStatus'
-import { RealtimeLineChart } from '@/charts/RealtimeLineChart'
-import { RiskTrendChart } from '@/charts/RiskTrendChart'
-import { AlertTimeline } from '@/charts/AlertTimeline'
-import { AlertTable } from '@/components/AlertTable'
-import { LoadingSkeleton } from '@/components/LoadingSkeleton'
-import { useDashboardSummary } from '@/hooks/useDashboard'
-import { useDevices } from '@/hooks/useDevices'
-import { useAlerts, useResolveAlert } from '@/hooks/useAlerts'
-import type { Device } from '@/services/api'
+import { Server, Thermometer, AlertTriangle, Shield, TrendingUp, Activity } from 'lucide-react'
+import { useLatestReadings } from '../hooks/useReadings'
+import { useActiveAlerts } from '../hooks/useAlerts'
+import { useAnalytics } from '../hooks/useAnalytics'
+import StatCard from '../components/StatCard'
+import AnimatedCounter from '../components/AnimatedCounter'
+import ModuleTabBar from '../components/ModuleTabBar'
+import RealTimeIndicator from '../components/RealTimeIndicator'
+import RealtimeLineChart from '../charts/RealtimeLineChart'
+import RiskTrendChart from '../charts/RiskTrendChart'
+import ModuleOverview from '../widgets/ModuleOverview'
+import DeviceOverview from '../widgets/DeviceOverview'
+import CriticalAlerts from '../widgets/CriticalAlerts'
+import SystemHealth from '../widgets/SystemHealth'
+import RecentActivity from '../widgets/RecentActivity'
+import { PageSkeleton } from '../components/LoadingSkeleton'
+import { staggerContainer, staggerItem } from '../animations/fadeIn'
+import { pageTransition } from '../animations/slideIn'
+import { useAcknowledgeAlert } from '../hooks/useAlerts'
+import { motion as m } from 'framer-motion'
 
-export function Dashboard() {
-  const { data: summary, isLoading: summaryLoading } = useDashboardSummary()
-  const { data: devices, isLoading: devicesLoading } = useDevices()
-  const { data: alerts } = useAlerts({ resolved: false })
-  const resolveAlert = useResolveAlert()
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
+export default function Dashboard() {
+  const { data: readings = [], isLoading: readingsLoading } = useLatestReadings()
+  const { data: activeAlerts = [], isLoading: alertsLoading } = useActiveAlerts()
+  const { data: analytics, isLoading: analyticsLoading } = useAnalytics()
+  const acknowledgeMutation = useAcknowledgeAlert()
 
-  const onlineDevices = devices?.filter((d) => d.status === 'online') || []
-  const avgTemp = onlineDevices.length > 0
-    ? onlineDevices.reduce((sum, d) => sum + d.temperature, 0) / onlineDevices.length
-    : 0
-  const avgHumidity = onlineDevices.length > 0
-    ? onlineDevices.reduce((sum, d) => sum + d.humidity, 0) / onlineDevices.length
-    : 0
-  const avgRisk = onlineDevices.length > 0
-    ? onlineDevices.reduce((sum, d) => sum + d.risk_score, 0) / onlineDevices.length
-    : 0
+  if (readingsLoading || analyticsLoading) return <PageSkeleton />
 
-  const stats = [
-    {
-      title: 'Online Devices',
-      value: summary?.online_devices || 0,
-      change: 5.2,
-      icon: Server,
-      color: 'bg-blue-500/10',
-    },
-    {
-      title: 'Avg Temperature',
-      value: `${avgTemp.toFixed(1)}`,
-      suffix: '°C',
-      change: -1.3,
-      icon: Thermometer,
-      color: 'bg-cyan-500/10',
-    },
-    {
-      title: 'Avg Humidity',
-      value: `${avgHumidity.toFixed(1)}`,
-      suffix: '%',
-      change: 0.8,
-      icon: Droplets,
-      color: 'bg-teal-500/10',
-    },
-    {
-      title: 'Active Alerts',
-      value: alerts?.length || 0,
-      change: -12.5,
-      icon: Bell,
-      color: 'bg-red-500/10',
-    },
-    {
-      title: 'Avg Risk Score',
-      value: avgRisk.toFixed(0),
-      change: -3.1,
-      icon: Shield,
-      color: 'bg-amber-500/10',
-    },
-    {
-      title: 'System Status',
-      value: summary?.system_status || 'OK',
-      icon: Activity,
-      color: 'bg-emerald-500/10',
-    },
-  ]
+  const onlineCount = readings.filter((r) => r.status !== 'OFFLINE').length
+  const avgTemp = readings.length ? (readings.reduce((sum, r) => sum + r.temperature, 0) / readings.length).toFixed(1) : '0.0'
+  const criticalAlerts = activeAlerts.filter((a) => a.severity === 'CRITICAL' || a.severity === 'HIGH')
+  const avgRisk = readings.length ? Math.round(readings.reduce((sum, r) => sum + r.riskScore, 0) / readings.length) : 0
 
   return (
-    <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
-      >
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Real-time monitoring of your cold storage infrastructure
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-1.5">
-            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-medium text-emerald-400">Live</span>
+    <motion.div variants={pageTransition} initial="hidden" animate="visible" exit="exit">
+      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-6">
+        <motion.div variants={staggerItem}>
+          <ModuleTabBar />
+        </motion.div>
+
+        <motion.div variants={staggerItem} className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-100">System Overview</h2>
+            <p className="text-sm text-gray-400">Enterprise IoT Analytics Dashboard</p>
           </div>
-        </div>
-      </motion.div>
+          <RealTimeIndicator />
+        </motion.div>
 
-      {summaryLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <LoadingSkeleton key={i} className="h-[140px]" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {stats.map((stat, index) => (
-            <StatCard key={stat.title} {...stat} loading={summaryLoading} />
-          ))}
-        </div>
-      )}
+        <motion.div variants={staggerItem} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={<Server className="w-6 h-6" />} label="Total Devices" value={
+            <span className="flex items-baseline gap-1">
+              <AnimatedCounter value={onlineCount} />
+              <span className="text-base text-gray-500">/{readings.length}</span>
+            </span>
+          } color="green" />
+          <StatCard icon={<Thermometer className="w-6 h-6" />} label="Avg Temperature" value={`${avgTemp}°C`} color="blue" />
+          <StatCard icon={<AlertTriangle className="w-6 h-6" />} label="Active Alerts" value={<AnimatedCounter value={activeAlerts.length} />} color={activeAlerts.length > 0 ? 'amber' : 'green'} />
+          <StatCard icon={<Shield className="w-6 h-6" />} label="Avg Risk Score" value={<AnimatedCounter value={avgRisk} />} color={avgRisk > 70 ? 'red' : avgRisk > 40 ? 'amber' : 'green'} />
+        </motion.div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <RealtimeLineChart />
-        </div>
-        <div className="space-y-4">
-          <TempGauge />
-        </div>
-      </div>
+        <motion.div variants={staggerItem}>
+          <ModuleOverview moduleStats={analytics?.moduleStats} />
+        </motion.div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <RiskTrendChart />
-        <AlertTimeline />
-        <SystemStatus />
-      </div>
+        <motion.div variants={staggerItem} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2"><RealtimeLineChart readings={readings} /></div>
+          <div><SystemHealth readings={readings} /></div>
+        </motion.div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="xl:col-span-2">
-          <DeviceOverview onViewDevice={setSelectedDevice} />
-        </div>
-        <div className="space-y-4">
-          <RiskMeter />
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="glass-card p-5"
-          >
-            <h3 className="mb-3 section-title">Recent Alerts</h3>
-            <div className="space-y-2">
-              {alerts?.slice(0, 5).map((alert) => (
-                <div
-                  key={alert.id}
-                  className="flex items-start gap-2 rounded-lg p-2 transition-colors hover:bg-white/[0.02]"
-                >
-                  <div
-                    className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${
-                      alert.level === 'critical' ? 'bg-red-400' :
-                      alert.level === 'warning' ? 'bg-yellow-400' : 'bg-blue-400'
-                    }`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs">{alert.message}</p>
-                    <p className="text-[10px] text-muted-foreground">{alert.device_name}</p>
-                  </div>
-                </div>
-              ))}
-              {(!alerts || alerts.length === 0) && (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  No active alerts
-                </p>
-              )}
+        <motion.div variants={staggerItem} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-1"><DeviceOverview readings={readings} /></div>
+          <div className="xl:col-span-1"><RiskTrendChart readings={readings} /></div>
+          <div className="xl:col-span-1"><CriticalAlerts alerts={criticalAlerts} onAcknowledge={(id) => acknowledgeMutation.mutate(id)} /></div>
+        </motion.div>
+
+        <motion.div variants={staggerItem}>
+          <RecentActivity />
+        </motion.div>
+
+        {analytics?.zones && analytics.zones.length > 0 && (
+          <motion.div variants={staggerItem}>
+            <div className="glass-card p-6">
+              <h3 className="text-sm font-semibold text-gray-300 mb-4">Zone Status Overview</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {analytics.zones.map((zone, index) => (
+                  <m.div key={zone.zone} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.1 }}
+                    className="p-4 rounded-xl bg-gray-800/30 border border-gray-800/50">
+                    <h4 className="font-medium text-gray-200 mb-2">{zone.zone}</h4>
+                    <div className="space-y-1 text-xs text-gray-400">
+                      <div className="flex justify-between"><span>Devices</span><span>{zone.onlineCount}/{zone.deviceCount}</span></div>
+                      <div className="flex justify-between"><span>Temperature</span><span>{zone.avgTemperature.toFixed(1)}°C</span></div>
+                      <div className="flex justify-between"><span>Risk Score</span>
+                        <span className={zone.avgRiskScore > 70 ? 'text-red-400' : zone.avgRiskScore > 40 ? 'text-amber-400' : 'text-emerald-400'}>
+                          {zone.avgRiskScore.toFixed(0)}
+                        </span>
+                      </div>
+                    </div>
+                  </m.div>
+                ))}
+              </div>
             </div>
           </motion.div>
-        </div>
-      </div>
-    </div>
+        )}
+      </motion.div>
+    </motion.div>
   )
 }

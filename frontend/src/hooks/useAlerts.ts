@@ -1,45 +1,79 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { alertAPI, type Alert, type AlertStats } from '@/services/api'
+import apiClient from '../services/api'
+import toast from 'react-hot-toast'
+import type { ModuleType } from '../services/api'
 
-export function useAlerts(params?: { level?: string; resolved?: boolean; device_id?: number }) {
-  return useQuery<Alert[]>({
+export function useAlerts(params?: {
+  severity?: string
+  device_id?: string
+  acknowledged?: boolean
+  module?: ModuleType
+}) {
+  return useQuery({
     queryKey: ['alerts', params],
     queryFn: async () => {
-      const { data } = await alertAPI.getAll(params)
+      const { data } = await apiClient.alerts.getAll(params as any)
       return data
     },
-    refetchInterval: 5000,
+    refetchInterval: 15000,
   })
 }
 
-export function useActiveAlerts() {
-  return useQuery<Alert[]>({
-    queryKey: ['alerts', 'active'],
+export function useActiveAlerts(module?: ModuleType) {
+  return useQuery({
+    queryKey: ['alerts', 'active', module],
     queryFn: async () => {
-      const { data } = await alertAPI.getActive()
+      const { data } = await apiClient.alerts.getActive(module ? { module } : undefined)
       return data
     },
-    refetchInterval: 5000,
+    refetchInterval: 15000,
   })
 }
 
-export function useResolveAlert() {
+export function useAcknowledgeAlert() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => alertAPI.resolve(id),
+    mutationFn: async (id: string) => {
+      await apiClient.alerts.acknowledge(id)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      toast.success('Alert acknowledged')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to acknowledge alert')
     },
   })
 }
 
-export function useAlertStats() {
-  return useQuery<AlertStats>({
-    queryKey: ['alerts', 'stats'],
-    queryFn: async () => {
-      const { data } = await alertAPI.getStats()
-      return data
+export function useDeleteAlert() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiClient.alerts.delete(id)
     },
-    refetchInterval: 10000,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      toast.success('Alert deleted')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to delete alert')
+    },
+  })
+}
+
+export function useBatchAcknowledgeAlerts() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      await apiClient.alerts.batchAcknowledge(ids)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+      toast.success('Alerts acknowledged')
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to acknowledge alerts')
+    },
   })
 }
