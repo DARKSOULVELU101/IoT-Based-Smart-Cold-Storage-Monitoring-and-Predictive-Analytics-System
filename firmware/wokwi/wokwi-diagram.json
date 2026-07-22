@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "author": "NARENDRAMEL",
+  "editor": "wokwi",
+  "part": "wokwi-esp32-devkit-v1",
+  "parts": [
+    { "type": "wokwi-dht22", "id": "dht1", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-mq-135", "id": "gas1", "top": 0, "left": 100, "attrs": {} },
+    { "type": "wokwi-lcd1602-i2c", "id": "lcd1", "top": 0, "left": 200, "attrs": {} },
+    { "type": "wokwi-led", "id": "led1", "top": 200, "left": 0, "attrs": { "color": "green" } },
+    { "type": "wokwi-led", "id": "led2", "top": 200, "left": 50, "attrs": { "color": "red" } }
+  ],
+  "connections": [
+    ["esp32:15", "dht1:SDA", "green", []],
+    ["esp32:2", "led1:A", "red", []],
+    ["esp32:4", "led2:A", "orange", []],
+    ["esp32:3V3", "dht1:VCC", "red", []],
+    ["esp32:GND.1", "dht1:GND", "black", []],
+    ["esp32:3V3", "gas1:VCC", "red", []],
+    ["esp32:GND.1", "gas1:GND", "black", []],
+    ["esp32:34", "gas1:AOUT", "blue", []]
+  ],
+  "firmware": "wokwi/esp32_monitor.ino"
+}
