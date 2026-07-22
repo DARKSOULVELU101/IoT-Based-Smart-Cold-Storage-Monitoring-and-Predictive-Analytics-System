@@ -64,8 +64,8 @@ def seed(db: Session = Depends(get_db)):
     from sqlalchemy import inspect, text as sa_text
     inspector = inspect(engine)
     existing = set(inspector.get_table_names())
-    expected = {"devices", "telemetry_readings", "alerts", "device_configs", "users", "audit_logs"}
-    if existing and not expected.issubset(existing):
+    needs_rebuild = "audit_logs" not in existing or "devices" in existing
+    if needs_rebuild:
         conn = engine.connect()
         try:
             for table in ["audit_logs", "alerts", "telemetry_readings", "device_configs", "devices", "users"]:
@@ -74,7 +74,7 @@ def seed(db: Session = Depends(get_db)):
                 conn.execute(sa_text(f"DROP TYPE IF EXISTS public.{enum_name} CASCADE"))
             conn.commit()
         except Exception as e:
-            print(f"Cleanup failed (non-fatal): {e}")
+            print(f"Cleanup failed: {e}")
             try:
                 conn.rollback()
             except Exception:
@@ -84,6 +84,21 @@ def seed(db: Session = Depends(get_db)):
     Base.metadata.create_all(bind=engine)
     from .services.seed_data import seed_database
     return seed_database(db)
+
+
+@app.get("/api/debug/schema")
+def debug_schema():
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        result = {}
+        for t in tables:
+            cols = [c["name"] for c in inspector.get_columns(t)]
+            result[t] = cols
+        return {"tables": tables, "columns": result}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/api/debug/db")
