@@ -3,14 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Cpu, BarChart3, Bell, FileText, Settings, User,
   Thermometer, Droplets, Warehouse, TrendingUp, ChevronDown, ChevronLeft,
-  Activity, Menu
+  Activity, Menu, Box, HeartPulse, Shield
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { path: '/devices', label: 'Devices', icon: Cpu },
+  { path: '/digital-twin', label: 'Digital Twin', icon: Box },
+  {
+    label: 'Devices', icon: Cpu, children: [
+      { path: '/devices', label: 'All Devices', icon: Cpu },
+      { path: '/device-health', label: 'Health Monitor', icon: HeartPulse },
+    ]
+  },
   {
     label: 'Analytics', icon: BarChart3, children: [
       { path: '/analytics/temperature', label: 'Temperature', icon: Thermometer },
@@ -21,6 +27,7 @@ const navItems = [
     ]
   },
   { path: '/alerts', label: 'Alerts', icon: Bell },
+  { path: '/audit-logs', label: 'Audit Logs', icon: Shield },
   { path: '/reports', label: 'Reports', icon: FileText },
   { path: '/settings', label: 'Settings', icon: Settings },
   { path: '/profile', label: 'Profile', icon: User },

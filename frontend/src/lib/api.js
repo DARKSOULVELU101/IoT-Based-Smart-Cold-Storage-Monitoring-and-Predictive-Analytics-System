@@ -44,6 +44,8 @@ export const analyticsAPI = {
   waterQuality: (params) => api.get('/analytics/water-quality', { params }),
   warehouse: (params) => api.get('/analytics/warehouse', { params }),
   predictive: (params) => api.get('/analytics/predictive', { params }),
+  failurePrediction: () => api.get('/analytics/failure-prediction'),
+  anomalyDetection: () => api.get('/analytics/anomaly-detection'),
 }
 
 export const alertAPI = {
@@ -66,6 +68,11 @@ export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   me: () => api.get('/auth/me'),
+}
+
+export const auditLogAPI = {
+  list: (params) => api.get('/audit-logs/', { params }),
+  stats: () => api.get('/audit-logs/stats'),
 }
 
 export default api

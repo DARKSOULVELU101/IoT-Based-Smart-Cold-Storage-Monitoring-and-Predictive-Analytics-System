@@ -48,6 +48,9 @@ class Device(Base):
     firmware_version = Column(String(50), default="1.0.0")
     ip_address = Column(String(45), default="")
     mac_address = Column(String(17), default="")
+    battery_level = Column(Float, default=100.0)
+    signal_strength = Column(Float, default=-50.0)
+    latency_ms = Column(Float, default=0.0)
     last_heartbeat = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -119,4 +122,18 @@ class User(Base):
     full_name = Column(String(255), default="")
     role = Column(String(50), default="admin")
     is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=True)
+    username = Column(String(100), default="system")
+    action = Column(String(100), nullable=False)
+    entity_type = Column(String(50), nullable=False)
+    entity_id = Column(Integer, nullable=True)
+    details = Column(JSON, nullable=True)
+    ip_address = Column(String(45), default="")
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

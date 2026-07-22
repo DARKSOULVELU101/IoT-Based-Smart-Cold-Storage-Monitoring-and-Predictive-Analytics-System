@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { deviceAPI, telemetryAPI, dashboardAPI, analyticsAPI, alertAPI, reportAPI } from './api'
+import { deviceAPI, telemetryAPI, dashboardAPI, analyticsAPI, alertAPI, reportAPI, auditLogAPI } from './api'
 
 export function useDevices(params) {
   return useQuery({ queryKey: ['devices', params], queryFn: () => deviceAPI.list(params).then(r => r.data) })
@@ -91,4 +91,20 @@ export function useWeeklyReport(params) {
 
 export function useMonthlyReport(params) {
   return useQuery({ queryKey: ['monthlyReport', params], queryFn: () => reportAPI.monthly(params).then(r => r.data) })
+}
+
+export function useFailurePrediction() {
+  return useQuery({ queryKey: ['failurePrediction'], queryFn: () => analyticsAPI.failurePrediction().then(r => r.data), refetchInterval: 60000 })
+}
+
+export function useAnomalyDetection() {
+  return useQuery({ queryKey: ['anomalyDetection'], queryFn: () => analyticsAPI.anomalyDetection().then(r => r.data), refetchInterval: 30000 })
+}
+
+export function useAuditLogs(params) {
+  return useQuery({ queryKey: ['auditLogs', params], queryFn: () => auditLogAPI.list(params).then(r => r.data) })
+}
+
+export function useAuditStats() {
+  return useQuery({ queryKey: ['auditStats'], queryFn: () => auditLogAPI.stats().then(r => r.data) })
 }

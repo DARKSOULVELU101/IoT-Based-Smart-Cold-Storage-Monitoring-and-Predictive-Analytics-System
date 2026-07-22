@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 import random
 
-from ..models import Device, TelemetryReading, Alert, DeviceConfig, DeviceType, DeviceStatus, AlertType, AlertSeverity
+from ..models import Device, TelemetryReading, Alert, DeviceConfig, AuditLog, DeviceType, DeviceStatus, AlertType, AlertSeverity
 
 
 def seed_database(db: Session):
@@ -11,14 +11,14 @@ def seed_database(db: Session):
         return {"message": "Database already seeded", "devices": existing}
 
     devices = [
-        Device(name="Cold Storage Unit A", device_type=DeviceType.COLD_STORAGE, location="Warehouse 1 - Zone A", status=DeviceStatus.ONLINE, ip_address="192.168.1.101", mac_address="AA:BB:CC:DD:EE:01"),
-        Device(name="Cold Storage Unit B", device_type=DeviceType.COLD_STORAGE, location="Warehouse 1 - Zone B", status=DeviceStatus.ONLINE, ip_address="192.168.1.102", mac_address="AA:BB:CC:DD:EE:02"),
-        Device(name="Machine Health Sensor 1", device_type=DeviceType.MACHINE_WATER, location="Factory Floor - Line 1", status=DeviceStatus.ONLINE, ip_address="192.168.1.103", mac_address="AA:BB:CC:DD:EE:03"),
-        Device(name="Water Quality Monitor A", device_type=DeviceType.MACHINE_WATER, location="Water Treatment Plant", status=DeviceStatus.ONLINE, ip_address="192.168.1.104", mac_address="AA:BB:CC:DD:EE:04"),
-        Device(name="Warehouse Environment Sensor", device_type=DeviceType.WAREHOUSE, location="Warehouse 2 - Main", status=DeviceStatus.ONLINE, ip_address="192.168.1.105", mac_address="AA:BB:CC:DD:EE:05"),
-        Device(name="Cold Storage Unit C", device_type=DeviceType.COLD_STORAGE, location="Warehouse 3 - Zone A", status=DeviceStatus.OFFLINE, ip_address="192.168.1.106", mac_address="AA:BB:CC:DD:EE:06"),
-        Device(name="Machine Health Sensor 2", device_type=DeviceType.MACHINE_WATER, location="Factory Floor - Line 2", status=DeviceStatus.MAINTENANCE, ip_address="192.168.1.107", mac_address="AA:BB:CC:DD:EE:07"),
-        Device(name="Water Quality Monitor B", device_type=DeviceType.MACHINE_WATER, location="Water Treatment Plant - B", status=DeviceStatus.ONLINE, ip_address="192.168.1.108", mac_address="AA:BB:CC:DD:EE:08"),
+        Device(name="Cold Storage Unit A", device_type=DeviceType.COLD_STORAGE, location="Warehouse 1 - Zone A", status=DeviceStatus.ONLINE, ip_address="192.168.1.101", mac_address="AA:BB:CC:DD:EE:01", battery_level=87, signal_strength=-42, latency_ms=12),
+        Device(name="Cold Storage Unit B", device_type=DeviceType.COLD_STORAGE, location="Warehouse 1 - Zone B", status=DeviceStatus.ONLINE, ip_address="192.168.1.102", mac_address="AA:BB:CC:DD:EE:02", battery_level=92, signal_strength=-38, latency_ms=8),
+        Device(name="Machine Health Sensor 1", device_type=DeviceType.MACHINE_WATER, location="Factory Floor - Line 1", status=DeviceStatus.ONLINE, ip_address="192.168.1.103", mac_address="AA:BB:CC:DD:EE:03", battery_level=65, signal_strength=-55, latency_ms=45),
+        Device(name="Water Quality Monitor A", device_type=DeviceType.MACHINE_WATER, location="Water Treatment Plant", status=DeviceStatus.ONLINE, ip_address="192.168.1.104", mac_address="AA:BB:CC:DD:EE:04", battery_level=78, signal_strength=-48, latency_ms=22),
+        Device(name="Warehouse Environment Sensor", device_type=DeviceType.WAREHOUSE, location="Warehouse 2 - Main", status=DeviceStatus.ONLINE, ip_address="192.168.1.105", mac_address="AA:BB:CC:DD:EE:05", battery_level=43, signal_strength=-62, latency_ms=78),
+        Device(name="Cold Storage Unit C", device_type=DeviceType.COLD_STORAGE, location="Warehouse 3 - Zone A", status=DeviceStatus.OFFLINE, ip_address="192.168.1.106", mac_address="AA:BB:CC:DD:EE:06", battery_level=12, signal_strength=-85, latency_ms=1200),
+        Device(name="Machine Health Sensor 2", device_type=DeviceType.MACHINE_WATER, location="Factory Floor - Line 2", status=DeviceStatus.MAINTENANCE, ip_address="192.168.1.107", mac_address="AA:BB:CC:DD:EE:07", battery_level=28, signal_strength=-72, latency_ms=320),
+        Device(name="Water Quality Monitor B", device_type=DeviceType.MACHINE_WATER, location="Water Treatment Plant - B", status=DeviceStatus.ONLINE, ip_address="192.168.1.108", mac_address="AA:BB:CC:DD:EE:08", battery_level=95, signal_strength=-35, latency_ms=5),
     ]
 
     for d in devices:
@@ -86,5 +86,32 @@ def seed_database(db: Session):
         )
         db.add(alert)
 
+    audit_actions = [
+        ("system", "device_heartbeat", "device", "Heartbeat received"),
+        ("system", "telemetry_ingest", "telemetry", "Telemetry data ingested"),
+        ("system", "alert_created", "alert", "Alert triggered by threshold"),
+        ("admin", "device_enable", "device", "Device enabled by administrator"),
+        ("admin", "device_disable", "device", "Device disabled by administrator"),
+        ("admin", "alert_resolve", "alert", "Alert resolved by administrator"),
+        ("system", "data_export", "report", "Report exported to CSV"),
+        ("admin", "device_config_update", "device_config", "Device configuration updated"),
+        ("system", "health_check", "system", "System health check completed"),
+        ("admin", "user_login", "auth", "User authenticated successfully"),
+        ("system", "anomaly_detected", "telemetry", "Anomaly detected in sensor data"),
+        ("system", "failure_prediction", "device", "Failure prediction model updated"),
+    ]
+
+    for i, (user, action, entity, details_msg) in enumerate(audit_actions):
+        log = AuditLog(
+            username=user,
+            action=action,
+            entity_type=entity,
+            entity_id=random.randint(1, 8),
+            details={"message": details_msg, "source": "seed_data"},
+            ip_address=f"192.168.1.{random.randint(10, 200)}",
+            created_at=datetime.now(timezone.utc) - timedelta(hours=random.randint(0, 72)),
+        )
+        db.add(log)
+
     db.commit()
-    return {"message": "Database seeded successfully", "devices": len(devices), "readings_per_device": 50}
+    return {"message": "Database seeded successfully", "devices": len(devices), "readings_per_device": 50, "audit_logs": len(audit_actions)}

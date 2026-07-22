@@ -6,7 +6,7 @@ from sqlalchemy import text
 import os
 
 from .database import engine, Base, get_db, SessionLocal
-from .routers import devices, telemetry, analytics, alerts, reports, dashboard, auth
+from .routers import devices, telemetry, analytics, alerts, reports, dashboard, auth, audit_logs
 
 
 @asynccontextmanager
@@ -51,6 +51,7 @@ app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"]
 app.include_router(alerts.router, prefix="/api/alerts", tags=["Alerts"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
+app.include_router(audit_logs.router, prefix="/api/audit-logs", tags=["Audit Logs"])
 
 
 @app.get("/api/health")
@@ -63,7 +64,7 @@ def seed(db: Session = Depends(get_db)):
     from sqlalchemy import inspect
     inspector = inspect(engine)
     existing = set(inspector.get_table_names())
-    expected = {"devices", "telemetry_readings", "alerts", "device_configs", "users"}
+    expected = {"devices", "telemetry_readings", "alerts", "device_configs", "users", "audit_logs"}
     if existing and not expected.issubset(existing):
         conn = engine.connect()
         conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))

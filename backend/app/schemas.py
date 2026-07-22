@@ -61,6 +61,9 @@ class DeviceRead(BaseModel):
     firmware_version: str
     ip_address: str
     mac_address: str
+    battery_level: float = 100.0
+    signal_strength: float = -50.0
+    latency_ms: float = 0.0
     last_heartbeat: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
@@ -216,3 +219,46 @@ class AnalyticsResponse(BaseModel):
     labels: List[str]
     datasets: List[dict]
     summary: dict
+
+
+class AuditLogCreate(BaseModel):
+    action: str
+    entity_type: str
+    entity_id: Optional[int] = None
+    details: Optional[dict] = None
+
+
+class AuditLogRead(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    username: str
+    action: str
+    entity_type: str
+    entity_id: Optional[int] = None
+    details: Optional[dict] = None
+    ip_address: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class FailurePrediction(BaseModel):
+    device_id: int
+    device_name: str
+    failure_probability: float
+    risk_level: str
+    predicted_failure_hours: Optional[float] = None
+    contributing_factors: List[str]
+    recommendation: str
+
+
+class AnomalyDetection(BaseModel):
+    device_id: int
+    device_name: str
+    anomaly_type: str
+    severity: str
+    description: str
+    detected_at: str
+    metric_value: float
+    expected_range: dict
