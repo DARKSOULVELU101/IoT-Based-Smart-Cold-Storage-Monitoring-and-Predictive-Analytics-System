@@ -1,4 +1,4 @@
-import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring, useMotionTemplate } from 'framer-motion'
+import { motion, useScroll, useTransform, useInView, useMotionValue, useSpring } from 'framer-motion'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -267,12 +267,18 @@ export default function LandingPage() {
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -150])
   const heroOpacity = useTransform(scrollYProgress, [0, 0.25], [1, 0])
   const heroScale = useTransform(scrollYProgress, [0, 0.3], [1, 0.92])
-  const heroBlur = useTransform(scrollYProgress, [0, 0.3], [0, 8])
   const parallaxBgY = useTransform(scrollYProgress, [0, 1], [0, -300])
-  const mouseXSpring = useSpring(mouse.x, { stiffness: 150, damping: 15 })
-  const mouseYSpring = useSpring(mouse.y, { stiffness: 150, damping: 15 })
-  const rotateX = useSpring(useTransform(mouseYSpring, [0, typeof window !== 'undefined' ? window.innerHeight : 800], [5, -5]), { stiffness: 150, damping: 15 })
-  const rotateY = useSpring(useTransform(mouseXSpring, [0, typeof window !== 'undefined' ? window.innerWidth : 1200], [-5, 5]), { stiffness: 150, damping: 15 })
+  const mouseFollowerX = useMotionValue(0)
+  const mouseFollowerY = useMotionValue(0)
+  const mouseFollowerXS = useSpring(mouseFollowerX, { stiffness: 50, damping: 20 })
+  const mouseFollowerYS = useSpring(mouseFollowerY, { stiffness: 50, damping: 20 })
+
+  useEffect(() => {
+    const w = window.innerWidth
+    const h = window.innerHeight
+    mouseFollowerX.set((mouse.x / w - 0.5) * 500)
+    mouseFollowerY.set((mouse.y / h - 0.5) * 500)
+  }, [mouse.x, mouse.y, mouseFollowerX, mouseFollowerY])
 
   const stats = [
     { label: 'IoT Devices', value: 128, suffix: '+', color: 'from-indigo-500 to-blue-500' },
@@ -338,8 +344,8 @@ export default function LandingPage() {
       <motion.div
         className="fixed w-[500px] h-[500px] rounded-full pointer-events-none z-0"
         style={{
-          x: useSpring(useTransform(mouse.x, [0, typeof window !== 'undefined' ? window.innerWidth : 1200], [-250, 250]), { stiffness: 50, damping: 20 }),
-          y: useSpring(useTransform(mouse.y, [0, typeof window !== 'undefined' ? window.innerHeight : 800], [-250, 250]), { stiffness: 50, damping: 20 }),
+          x: mouseFollowerXS,
+          y: mouseFollowerYS,
           background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.04) 40%, transparent 70%)',
         }}
       />
