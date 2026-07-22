@@ -60,18 +60,20 @@ def health_check():
 
 @app.post("/api/seed")
 def seed(db: Session = Depends(get_db)):
-    try:
+    from sqlalchemy import inspect
+    inspector = inspect(engine)
+    existing = set(inspector.get_table_names())
+    expected = {"devices", "telemetry_readings", "alerts", "device_configs", "users"}
+    if existing and not expected.issubset(existing):
         conn = engine.connect()
         conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
         conn.execute(text("GRANT ALL ON SCHEMA public TO apiuser;"))
         conn.execute(text("GRANT ALL ON SCHEMA public TO coldstorage_user;"))
         conn.commit()
         conn.close()
-        Base.metadata.create_all(bind=engine)
-        from .services.seed_data import seed_database
-        return seed_database(db)
-    except Exception as e:
-        return {"error": str(e), "type": type(e).__name__}
+    Base.metadata.create_all(bind=engine)
+    from .services.seed_data import seed_database
+    return seed_database(db)
 
 
 @app.get("/api/debug/db")
