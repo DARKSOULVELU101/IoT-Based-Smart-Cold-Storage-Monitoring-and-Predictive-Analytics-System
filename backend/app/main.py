@@ -1,14 +1,22 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from datetime import datetime, timedelta, timezone
-from typing import Optional
 import os
 
 from .database import engine, Base, get_db
-from .models import Device, TelemetryReading, Alert, DeviceConfig, User, DeviceStatus
 from .routers import devices, telemetry, analytics, alerts, reports, dashboard, auth
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Database tables created successfully")
+    except Exception as e:
+        print(f"Startup table creation failed: {e}")
+    yield
+
 
 app = FastAPI(
     title="IoT Monitoring API",
@@ -16,6 +24,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 CORS_ORIGINS = [
@@ -43,16 +52,6 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 
 
-@app.on_event("startup")
-def startup():
-    try:
-        Base.metadata.create_all(bind=engine)
-        print("Database tables created successfully")
-    except Exception as e:
-        print(f"Database connection failed: {e}")
-        print("App will start but database operations will fail until connection is restored")
-
-
 @app.get("/api/health")
 def health_check():
     return {"status": "healthy", "service": "IoT Monitoring API", "version": "1.0.0"}
@@ -60,5 +59,6 @@ def health_check():
 
 @app.post("/api/seed")
 def seed(db: Session = Depends(get_db)):
+    Base.metadata.create_all(bind=engine)
     from .services.seed_data import seed_database
     return seed_database(db)
