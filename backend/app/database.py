@@ -34,3 +34,4 @@ def get_db():
         yield db
     finally:
         db.close()
+#database link "https://iot-backend-api.onrender.com/"
