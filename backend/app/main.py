@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 import os
 
 from .database import engine, Base, get_db, SessionLocal
@@ -60,7 +61,12 @@ def health_check():
 @app.post("/api/seed")
 def seed(db: Session = Depends(get_db)):
     try:
-        Base.metadata.drop_all(bind=engine)
+        conn = engine.connect()
+        conn.execute(text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+        conn.execute(text("GRANT ALL ON SCHEMA public TO apiuser;"))
+        conn.execute(text("GRANT ALL ON SCHEMA public TO coldstorage_user;"))
+        conn.commit()
+        conn.close()
         Base.metadata.create_all(bind=engine)
         from .services.seed_data import seed_database
         return seed_database(db)
