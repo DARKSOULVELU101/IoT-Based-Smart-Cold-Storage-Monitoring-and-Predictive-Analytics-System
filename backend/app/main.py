@@ -68,11 +68,17 @@ def seed(db: Session = Depends(get_db)):
     if existing and not expected.issubset(existing):
         conn = engine.connect()
         try:
-            conn.execute(sa_text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+            for table in ["audit_logs", "alerts", "telemetry_readings", "device_configs", "devices", "users"]:
+                conn.execute(sa_text(f"DROP TABLE IF EXISTS public.{table} CASCADE"))
+            for enum_name in ["devicetype", "devicestatus", "alerttype", "alertseverity"]:
+                conn.execute(sa_text(f"DROP TYPE IF EXISTS public.{enum_name} CASCADE"))
             conn.commit()
         except Exception as e:
-            print(f"Schema drop failed (non-fatal): {e}")
-            conn.rollback()
+            print(f"Cleanup failed (non-fatal): {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         finally:
             conn.close()
     Base.metadata.create_all(bind=engine)
