@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
 
-from .database import engine, Base, get_db
+from .database import engine, Base, get_db, SessionLocal
 from .routers import devices, telemetry, analytics, alerts, reports, dashboard, auth
 
 
@@ -59,6 +59,21 @@ def health_check():
 
 @app.post("/api/seed")
 def seed(db: Session = Depends(get_db)):
-    Base.metadata.create_all(bind=engine)
-    from .services.seed_data import seed_database
-    return seed_database(db)
+    try:
+        Base.metadata.create_all(bind=engine)
+        from .services.seed_data import seed_database
+        return seed_database(db)
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
+
+
+@app.get("/api/debug/db")
+def debug_db():
+    try:
+        from sqlalchemy import text
+        db = SessionLocal()
+        result = db.execute(text("SELECT 1"))
+        db.close()
+        return {"db_connection": "ok"}
+    except Exception as e:
+        return {"db_connection": "failed", "error": str(e), "type": type(e).__name__}
