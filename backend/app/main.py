@@ -15,22 +15,24 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import inspect, text as sa_text
         inspector = inspect(engine)
         existing_tables = set(inspector.get_table_names())
-        if "devices" in existing_tables and "audit_logs" not in existing_tables:
-            conn = engine.connect()
-            try:
-                for table in ["audit_logs", "alerts", "telemetry_readings", "device_configs", "devices", "users"]:
-                    conn.execute(sa_text(f"DROP TABLE IF EXISTS public.{table} CASCADE"))
-                for enum_name in ["devicetype", "devicestatus", "alerttype", "alertseverity"]:
-                    conn.execute(sa_text(f"DROP TYPE IF EXISTS public.{enum_name} CASCADE"))
-                conn.commit()
-            except Exception as e:
-                print(f"Startup cleanup failed: {e}")
+        if "devices" in existing_tables:
+            cols = {c["name"] for c in inspector.get_columns("devices")}
+            if "battery_level" not in cols:
+                conn = engine.connect()
                 try:
-                    conn.rollback()
-                except Exception:
-                    pass
-            finally:
-                conn.close()
+                    for table in ["audit_logs", "alerts", "telemetry_readings", "device_configs", "devices", "users"]:
+                        conn.execute(sa_text(f"DROP TABLE IF EXISTS public.{table} CASCADE"))
+                    for enum_name in ["devicetype", "devicestatus", "alerttype", "alertseverity"]:
+                        conn.execute(sa_text(f"DROP TYPE IF EXISTS public.{enum_name} CASCADE"))
+                    conn.commit()
+                except Exception as e:
+                    print(f"Startup cleanup failed: {e}")
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                finally:
+                    conn.close()
         Base.metadata.create_all(bind=engine)
         print("Database tables created successfully")
     except Exception as e:
@@ -82,8 +84,14 @@ def health_check():
 def seed(db: Session = Depends(get_db)):
     from sqlalchemy import inspect, text as sa_text
     inspector = inspect(engine)
-    existing = set(inspector.get_table_names())
-    needs_rebuild = "audit_logs" not in existing or "devices" in existing
+    existing_tables = set(inspector.get_table_names())
+    needs_rebuild = False
+    if "devices" in existing_tables:
+        cols = {c["name"] for c in inspector.get_columns("devices")}
+        if "battery_level" not in cols:
+            needs_rebuild = True
+    if "audit_logs" not in existing_tables:
+        needs_rebuild = True
     if needs_rebuild:
         conn = engine.connect()
         try:
