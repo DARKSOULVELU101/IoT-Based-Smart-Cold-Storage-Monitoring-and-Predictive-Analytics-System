@@ -60,6 +60,7 @@ def health_check():
 @app.post("/api/seed")
 def seed(db: Session = Depends(get_db)):
     try:
+        Base.metadata.drop_all(bind=engine)
         Base.metadata.create_all(bind=engine)
         from .services.seed_data import seed_database
         return seed_database(db)
