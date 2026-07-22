@@ -11,12 +11,18 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localho
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+connect_args = {}
+if "render.com" in DATABASE_URL or "sslmode" in DATABASE_URL:
+    connect_args = {"sslmode": "require", "connect_timeout": 10}
+elif "postgresql" in DATABASE_URL:
+    connect_args = {"connect_timeout": 10}
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
     pool_size=5,
     max_overflow=10,
-    connect_args={"connect_timeout": 10} if "postgresql" in DATABASE_URL else {},
+    connect_args=connect_args,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
