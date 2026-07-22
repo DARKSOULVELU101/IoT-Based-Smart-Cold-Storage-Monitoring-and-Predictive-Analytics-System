@@ -22,6 +22,8 @@ CORS_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
     "http://localhost:5174",
+    "https://iot-analytics-suite.vercel.app",
+    "https://*.vercel.app",
 ]
 
 app.add_middleware(
@@ -43,7 +45,12 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"]
 
 @app.on_event("startup")
 def startup():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Database tables created successfully")
+    except Exception as e:
+        print(f"Database connection failed: {e}")
+        print("App will start but database operations will fail until connection is restored")
 
 
 @app.get("/api/health")
