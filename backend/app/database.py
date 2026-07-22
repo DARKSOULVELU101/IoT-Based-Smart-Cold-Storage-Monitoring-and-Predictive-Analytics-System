@@ -12,7 +12,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 connect_args = {}
-if "render.com" in DATABASE_URL or "sslmode" in DATABASE_URL:
+if "render.com" in DATABASE_URL or "sslmode" in DATABASE_URL or "dpg-" in DATABASE_URL:
     connect_args = {"sslmode": "require", "connect_timeout": 10}
 elif "postgresql" in DATABASE_URL:
     connect_args = {"connect_timeout": 10}
